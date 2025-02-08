@@ -48,7 +48,7 @@ struct WeekNavigationHeader: View {
             
             // Header Title: Shows either “Today” or the weekday and month.
             let isToday = Calendar.current.isDate(selectedDate, inSameDayAs: Date())
-            let mainText = isToday ? "Today" : DateFormatter.weekdayFormatter.string(from: selectedDate)
+            let mainText = isToday ? "Today" : DateFormatter.shortWeekdayFormatter.string(from: selectedDate)
             let subText = DateFormatter.monthFormatter.string(from: selectedDate)
             VStack(spacing: 2) {
                 Text(mainText)

@@ -75,11 +75,22 @@ struct ToDoView: View {
         
         // Event detail sheet
         .sheet(item: $selectedEvent) { event in
-            EventDetailView(event: event) { updated in
-                eventStore.updateEvent(updated)
+            if (selectedTab == 2) {
+                CompletedTaskDetailsView(event: event)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .padding(.top, Serenity.Layout.standardPadding)
+                    .background(.ultraThickMaterial)
             }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+            else {
+                EventDetailView(event: event) { updated in
+                    eventStore.updateEvent(updated)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .padding(.top, Serenity.Layout.standardPadding)
+                .background(.ultraThickMaterial)
+            }
         }
         
         // Once we appear, ensure eventStore uses the correct authService

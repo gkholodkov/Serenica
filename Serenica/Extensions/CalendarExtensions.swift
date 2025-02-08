@@ -58,3 +58,25 @@ extension Date {
         Calendar.current.date(byAdding: .weekOfYear, value: -1, to: self)!
     }
 }
+
+extension DateFormatter {
+    /// Formatter for full weekday names (e.g. "Saturday")
+    static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
+    
+    static let shortWeekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EE"
+        return formatter
+    }()
+    
+    /// Formatter for full month names (e.g. "January")
+    static let monthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "LLLL"
+        return formatter
+    }()
+}

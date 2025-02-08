@@ -43,7 +43,7 @@ struct CompletedEventsView: View {
                                     eventStore.toggleEventCompletion(event)
                                 },
                                 onTap: {
-                                    // Optionally: selectedEvent = event
+                                    selectedEvent = event
                                 }
                             )
                         }
@@ -134,15 +134,15 @@ private struct EventRow: View {
     
     var body: some View {
         HStack(spacing: Serenity.Layout.smallPadding) {
-            // Checkbox with a checkmark icon or empty circle.
-            Button(action: onToggle) {
-                CheckboxView(isChecked: event.isCompleted)
-            }
-            .buttonStyle(.plain)
-            .frame(
-                width: Serenity.Layout.minimumTapTarget,
-                height: Serenity.Layout.minimumTapTarget
-            )
+            //// Checkbox with a checkmark icon or empty circle.
+            //Button(action: onToggle) {
+            //    CheckboxView(isChecked: event.isCompleted)
+            //}
+            //.buttonStyle(.plain)
+            //.frame(
+            //    width: Serenity.Layout.minimumTapTarget,
+            //    height: Serenity.Layout.minimumTapTarget
+            //)
             
             // Event title with strikethrough styling.
             Button(action: onTap) {

@@ -254,22 +254,6 @@ private enum CalendarViewMode {
     case month, week
 }
 
-extension DateFormatter {
-    /// Formatter for full weekday names (e.g. "Saturday")
-    static let weekdayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE"
-        return formatter
-    }()
-    
-    /// Formatter for full month names (e.g. "January")
-    static let monthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "LLLL"
-        return formatter
-    }()
-}
-
 // MARK: - Previews
 
 #Preview {

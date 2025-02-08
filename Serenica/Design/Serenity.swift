@@ -15,6 +15,9 @@ enum Serenity {
         /// A neutral secondary color
         static let secondary = Color.gray
         
+        /// A ligh gray color
+        static let disabled = Color(hex: "#E0E0E0")
+        
         /// White background, matching the mockups
         static let background = Color.white
         
@@ -64,7 +67,7 @@ enum Serenity {
 
         /// Optional subtitle styling if needed
         static func subtitle() -> Font {
-            .system(.title3, design: .rounded, weight: .medium)
+            .system(.title3, design: .rounded, weight: .semibold)
         }
     }
     

@@ -26,11 +26,7 @@ struct MainTabView: View {
                         }
                 }
                 .tabItem {
-                    Image("CustomBubble")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 20, height: 20)
+                    Image(systemName: "captions.bubble")                        .frame(width: 20, height: 20)
                 }
                 
                 // Calendar tab
@@ -39,10 +35,7 @@ struct MainTabView: View {
                         .navigationBarHidden(true)
                 }
                 .tabItem {
-                    Image("CustomCalendar")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
+                    Image(systemName: "calendar")
                         .frame(width: 20, height: 20)
                 }
             }

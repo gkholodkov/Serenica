@@ -5,7 +5,6 @@
 //  Created by Checkito12 on 18.01.25.
 //
 
-
 import CoreData
 import SwiftUI
 
@@ -35,6 +34,8 @@ class EventStore: ObservableObject {
         entity.endDate = event.endDate
         entity.notes = event.notes
         entity.isCompleted = event.isCompleted
+        entity.notificationId = event.notificationId  // persist notificationId if provided
+        entity.notificationInterval = event.notificationInterval ?? 0
         
         // Add relationship to current user
         if let userId = authService.currentUser?.id {
@@ -48,6 +49,15 @@ class EventStore: ObservableObject {
         do {
             try context.save()
             fetchEvents()
+            
+            // Post a notification so that a local notification is scheduled if a valid notificationId is provided.
+            if event.notificationId != nil {
+                NotificationCenter.default.post(
+                    name: .eventNeedsNotification,
+                    object: nil,
+                    userInfo: ["event": event]
+                )
+            }
         } catch {
             print("Error saving event: \(error.localizedDescription)")
         }
@@ -62,9 +72,82 @@ class EventStore: ObservableObject {
                 entity.isCompleted = !event.isCompleted
                 try context.save()
                 fetchEvents()
+                // If the event has an associated notification, post a deletion notification.
+                if let notificationId = entity.notificationId {
+                    NotificationCenter.default.post(
+                        name: .eventRemovedNotification,
+                        object: nil,
+                        userInfo: ["notificationId": notificationId]
+                    )
+                }
+
             }
         } catch {
             print("Error toggling event completion: \(error.localizedDescription)")
+        }
+    }
+    
+    func updateEvent(_ event: Event) {
+        let request = NSFetchRequest<EventEntity>(entityName: "EventEntity")
+        request.predicate = NSPredicate(format: "id == %@", event.id as CVarArg)
+        
+        do {
+            if let entity = try context.fetch(request).first {
+                let initialNotificationId = entity.notificationId
+                
+                entity.title = event.title
+                entity.startDate = event.startDate
+                entity.endDate = event.endDate
+                entity.notes = event.notes
+                entity.isCompleted = event.isCompleted
+                entity.notificationId = event.notificationId
+                entity.notificationInterval = event.notificationInterval ?? 0
+                
+                try context.save()
+                fetchEvents()
+                
+                // If the event has a valid notificationId, post a notification to re-schedule it.
+                if event.notificationId != nil {
+                    NotificationCenter.default.post(
+                        name: .eventNeedsNotification,
+                        object: nil,
+                        userInfo: ["event": event]
+                    )
+                } else if (initialNotificationId != nil) {
+                    NotificationCenter.default.post(
+                        name: .eventRemovedNotification,
+                        object: nil,
+                        userInfo: ["notificationId": initialNotificationId!]
+                    )
+                }
+            }
+        } catch {
+            print("Error updating event: \(error.localizedDescription)")
+        }
+    }
+    
+    func deleteEvent(withId id: UUID) {
+        let request = NSFetchRequest<EventEntity>(entityName: "EventEntity")
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        
+        do {
+            let entities = try context.fetch(request)
+            if let entity = entities.first {
+                context.delete(entity)
+                try context.save()
+                fetchEvents()
+                // If the event has an associated notification, post a deletion notification.
+                if let notificationId = entity.notificationId {
+                    NotificationCenter.default.post(
+                        name: .eventRemovedNotification,
+                        object: nil,
+                        userInfo: ["notificationId": notificationId]
+                    )
+                }
+
+            }
+        } catch {
+            print("Error deleting event: \(error.localizedDescription)")
         }
     }
     
@@ -90,7 +173,9 @@ class EventStore: ObservableObject {
                     endDate: entity.endDate ?? Date(),
                     notes: entity.notes ?? "",
                     userId: entity.user?.id ?? UUID(),
-                    isCompleted: entity.isCompleted
+                    isCompleted: entity.isCompleted,
+                    notificationId: entity.notificationId,
+                    notificationInterval: entity.notificationInterval
                 )
             }
             
@@ -113,7 +198,9 @@ class EventStore: ObservableObject {
                     endDate: entity.endDate,
                     notes: entity.notes ?? "",
                     userId: entity.user?.id ?? UUID(),
-                    isCompleted: entity.isCompleted
+                    isCompleted: entity.isCompleted,
+                    notificationId: entity.notificationId,
+                    notificationInterval: entity.notificationInterval
                 )
             }
             
@@ -133,47 +220,13 @@ class EventStore: ObservableObject {
                     endDate: entity.endDate ?? Date(),
                     notes: entity.notes ?? "",
                     userId: entity.user?.id ?? UUID(),
-                    isCompleted: entity.isCompleted
+                    isCompleted: entity.isCompleted,
+                    notificationId: entity.notificationId,
+                    notificationInterval: entity.notificationInterval
                 )
             }
         } catch {
             print("Error fetching events: \(error.localizedDescription)")
-        }
-    }
-    
-    func deleteEvent(withId id: UUID) {
-        let request = NSFetchRequest<EventEntity>(entityName: "EventEntity")
-        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        
-        do {
-            let entities = try context.fetch(request)
-            if let entity = entities.first {
-                context.delete(entity)
-                try context.save()
-                fetchEvents()
-            }
-        } catch {
-            print("Error deleting event: \(error.localizedDescription)")
-        }
-    }
-    
-    func updateEvent(_ event: Event) {
-        let request = NSFetchRequest<EventEntity>(entityName: "EventEntity")
-        request.predicate = NSPredicate(format: "id == %@", event.id as CVarArg)
-        
-        do {
-            if let entity = try context.fetch(request).first {
-                entity.title = event.title
-                entity.startDate = event.startDate
-                entity.endDate = event.endDate
-                entity.notes = event.notes
-                entity.isCompleted = event.isCompleted
-                
-                try context.save()
-                fetchEvents()
-            }
-        } catch {
-            print("Error updating event: \(error.localizedDescription)")
         }
     }
     
@@ -235,10 +288,9 @@ class EventStore: ObservableObject {
         }
     }
 
-    
     #if DEBUG
     func previewAddEvent(_ event: Event) {
         addEvent(event)
     }
     #endif
-} 
+}
