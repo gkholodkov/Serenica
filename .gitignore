@@ -1,0 +1,36 @@
+# --- macOS/General ---
+.DS_Store
+*.swp
+*.swo
+*.tmp
+
+# --- Xcode build artifacts & user data ---
+build/
+DerivedData/
+*.xcuserdatad/
+*.xcscmblueprints
+xcuserdata/
+
+# If using Swift Packages / automatic Xcode caching
+*.xcpackage
+
+# If your project uses CocoaPods (comment out if not relevant)
+Pods/
+Podfile.lock
+
+# If your project uses Carthage (comment out if not relevant)
+Carthage/Build/
+Carthage/Checkouts/
+
+# If your project uses fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/Preview.png
+fastlane/test_output
+
+# If you happen to have any code coverage or instrumentation output
+*.xccoverage
+.xccovreport
+.xccovarchive
+
+# --- End of typical rules ---
