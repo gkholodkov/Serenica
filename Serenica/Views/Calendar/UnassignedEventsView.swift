@@ -2,13 +2,17 @@ import SwiftUI
 
 /// Shows a list of all events that have no start/end date (undated) with an "Unassigned" header.
 struct UnassignedEventsView: View {
-    @ObservedObject var eventStore: EventStore
+    @ObservedObject var eventService: EventService
     @Binding var selectedEvent: Event?
     @Binding var showingEventSheet: Bool
     
+    // New state variables for deletion confirmation.
+    @State private var eventToDelete: Event? = nil
+    @State private var showingDeletionConfirmation: Bool = false
+    
     /// Filter out tasks that are already completed.
     private var unassignedTasks: [Event] {
-        eventStore.undatedEvents.filter { !$0.isCompleted }
+        eventService.undatedEvents.filter { !$0.isCompleted }
     }
     
     var body: some View {
@@ -43,15 +47,15 @@ struct UnassignedEventsView: View {
                     ForEach(unassignedTasks) { event in
                         UnassignedEventRowView(
                             event: event,
-                            onToggle: { eventStore.toggleEventCompletion(event) },
+                            onToggle: { eventService.toggleEventCompletion(event, on: Date()) },
                             onTap: { selectedEvent = event }
                         )
                         .listRowSeparator(.hidden)
                     }
                     .onDelete { indexSet in
-                        for index in indexSet {
-                            let event = unassignedTasks[index]
-                            eventStore.deleteEvent(withId: event.id)
+                        if let index = indexSet.first {
+                            eventToDelete = unassignedTasks[index]
+                            showingDeletionConfirmation = true
                         }
                     }
                 }
@@ -60,6 +64,24 @@ struct UnassignedEventsView: View {
             .padding(.horizontal, 4)
         }
         .background(Color.white)
+        // Confirmation dialog for deletion.
+        .confirmationDialog(
+            "Delete Event",
+            isPresented: $showingDeletionConfirmation,
+            titleVisibility: .hidden
+        ) {
+            if let event = eventToDelete {
+                Button("Delete", role: .destructive) {
+                    eventService.deleteEvent(withId: event.id)
+                    eventToDelete = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                eventToDelete = nil
+            }
+        } message: {
+            Text("The task will be deleted.")
+        }
     }
 }
 
@@ -102,7 +124,7 @@ private struct UnassignedEventRowView: View {
 
 #Preview {
     UnassignedEventsView(
-        eventStore: EventStore(),
+        eventService: EventService(),
         selectedEvent: .constant(nil),
         showingEventSheet: .constant(false)
     )
@@ -110,7 +132,7 @@ private struct UnassignedEventRowView: View {
 }
 
 #Preview("With Events") {
-    let eventStore = EventStore()
+    let eventService = EventService()
     
     // Add some undated events.
     let events = [
@@ -131,10 +153,10 @@ private struct UnassignedEventRowView: View {
         )
     ]
     
-    events.forEach { eventStore.previewAddEvent($0) }
+    events.forEach { eventService.previewAddEvent($0) }
     
     return UnassignedEventsView(
-        eventStore: eventStore,
+        eventService: eventService,
         selectedEvent: .constant(nil),
         showingEventSheet: .constant(false)
     )

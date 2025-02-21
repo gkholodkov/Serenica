@@ -28,6 +28,8 @@ class NotificationManager {
     @objc private func handleEventNotification(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let event = userInfo["event"] as? Event,
+              let startDate = event.startDate,
+              let date = userInfo["date"] as? Date,
               let notificationId = event.notificationId else {
             return
         }
@@ -35,7 +37,7 @@ class NotificationManager {
         // Cancel any existing notification with the same identifier.
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationId.uuidString])
         
-        scheduleNotification(for: event, with: notificationId)
+        scheduleNotification(for: event, with: notificationId, on: date.merge(withTimeFrom: startDate))
     }
     
     @objc private func handleEventDeletion(_ notification: Notification) {
@@ -48,20 +50,20 @@ class NotificationManager {
         print("Notification removed for id: \(notificationId.uuidString)")
     }
     
-    private func scheduleNotification(for event: Event, with notificationId: UUID) {
+    private func scheduleNotification(for event: Event, with notificationId: UUID, on date: Date) {
         // Make sure there is a valid event date.
         let minutes = event.notificationInterval ?? 0
-        guard let eventDate = event.startDate?.addingTimeInterval(-1 * minutes * 60) else { return }
+        let triggerDate = date.addingTimeInterval(-1 * minutes * 60)
         
         let content = UNMutableNotificationContent()
         content.title = event.title
-        content.body = "Your event is starting soon."
+        content.body = "Hey, just a heads-up—your event is about to start! Time to wrap up your current task and get ready!"
         content.sound = .default
         
         // Create a trigger to fire the notification at the event's start date.
         let triggerDateComponents = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
-            from: eventDate
+            from: triggerDate
         )
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDateComponents, repeats: false)
         

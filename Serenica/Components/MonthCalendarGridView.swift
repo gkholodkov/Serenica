@@ -6,7 +6,7 @@ import SwiftUI
 /// Tapping on a valid current-month day calls `onSelectDay(date)`.
 struct MonthCalendarGridView: View {
     @Binding var selectedDate: Date
-    let events: [Event]
+    @ObservedObject var eventService: EventService
     let onSelectDay: (Date) -> Void
 
     /// Tracks if the user has explicitly selected a date.
@@ -22,10 +22,10 @@ struct MonthCalendarGridView: View {
                     day: calendarDay.day,
                     date: calendarDay.date,
                     isCurrentMonth: calendarDay.isCurrentMonth,
-                    isSelected: calendarDay.isCurrentMonth && Calendar.current.isDate(calendarDay.date, inSameDayAs: selectedDate),
+                    isSelected: calendarDay.isCurrentMonth && calendarDay.date >= Date().startOfDay() && Calendar.current.isDate(calendarDay.date, inSameDayAs: selectedDate),
                     isToday: calendarDay.isCurrentMonth && Calendar.current.isDate(calendarDay.date, inSameDayAs: Date()),
                     isPast: calendarDay.isCurrentMonth && calendarDay.date < Date().startOfDay(),
-                    hasEvents: calendarDay.isCurrentMonth ? hasEvents(on: calendarDay.date) : false,
+                    hasEvents: calendarDay.isCurrentMonth ? eventService.hasOccurrence(on: calendarDay.date) : false,
                     onTap: {
                         // Only allow selection for current-month cells that are not in the past.
                         if calendarDay.isCurrentMonth && calendarDay.date >= Date().startOfDay() {
@@ -88,18 +88,6 @@ struct MonthCalendarGridView: View {
         var comps = calendar.dateComponents([.year, .month], from: referenceDate)
         comps.day = day
         return calendar.date(from: comps)
-    }
-    
-    /// Returns true if the given date (assumed to be a start-of-day) overlaps an event.
-    private func hasEvents(on date: Date) -> Bool {
-        let calendar = Calendar.current
-        let dayStart = calendar.startOfDay(for: date)
-        return events.contains { event in
-            guard let startDate = event.startDate, let endDate = event.endDate else { return false }
-            let eventStart = calendar.startOfDay(for: startDate)
-            let eventEnd = calendar.startOfDay(for: endDate)
-            return (min(eventStart, eventEnd)...max(eventStart, eventEnd)).contains(dayStart)
-        }
     }
 }
 
@@ -184,31 +172,24 @@ private struct DayCellView: View {
 #Preview {
     MonthCalendarGridView(
         selectedDate: .constant(Date()),
-        events: []
+        eventService: EventService()
     ) { _ in }
 }
 
 #Preview("With Events") {
     let today = Date()
-    let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+    let eventService = EventService()
+    let sampleEvent = Event(
+        title: "Sample Event",
+        startDate: Date(),
+        endDate: Date().addingTimeInterval(3600),
+        notes: "Sample notes",
+        userId: UUID()
+    )
+    eventService.previewAddEvent(sampleEvent)
     
     return MonthCalendarGridView(
         selectedDate: .constant(today),
-        events: [
-            Event(
-                title: "Today's Event",
-                startDate: today,
-                endDate: today.addingTimeInterval(3600),
-                notes: "Sample event",
-                userId: UUID()
-            ),
-            Event(
-                title: "Tomorrow's Event",
-                startDate: tomorrow,
-                endDate: tomorrow.addingTimeInterval(3600),
-                notes: "Future event",
-                userId: UUID()
-            )
-        ]
+        eventService: eventService
     ) { _ in }
 }

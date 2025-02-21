@@ -12,8 +12,8 @@ struct ToDoView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject private var authService: AuthService
     
-    // Main EventStore
-    @StateObject private var eventStore = EventStore()
+    // Main EventService
+    @StateObject private var eventService = EventService()
     
     // UI State
     @State private var selectedTab = 1
@@ -40,14 +40,14 @@ struct ToDoView: View {
                 case 0:
                     // Unassigned / undated tasks
                     UnassignedEventsView(
-                        eventStore: eventStore,
+                        eventService: eventService,
                         selectedEvent: $selectedEvent,
                         showingEventSheet: $showingEventSheet
                     )
                 case 1:
                     // Active tasks (calendar + day-based event list)
                     EventListView(
-                        eventStore: eventStore,
+                        eventService: eventService,
                         selectedDate: $selectedDate,
                         selectedEvent: $selectedEvent,
                         showingEventSheet: $showingEventSheet
@@ -55,7 +55,7 @@ struct ToDoView: View {
                 default:
                     // Completed tasks
                     CompletedEventsView(
-                        eventStore: eventStore,
+                        eventService: eventService,
                         selectedEvent: $selectedEvent
                     )
                 }
@@ -63,14 +63,22 @@ struct ToDoView: View {
             .background(Serenity.Colors.background)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear() {
-            eventStore.refreshEvents()
-        }
         
         // Add new event sheet
         .sheet(isPresented: $showingEventSheet) {
-            AddEventView(date: (selectedTab == 1) ? selectedDate : nil)
-                .environmentObject(eventStore)
+            AddEventView(
+                passedDate: (selectedTab == 1)
+                    ? Binding<Date?>(
+                        get: { selectedDate },
+                        set: { newValue in
+                            // If the child sets `passedDate` to nil, decide how you want to handle that.
+                            // Here, we fall back to Date() if nil is assigned.
+                            selectedDate = newValue ?? Date()
+                        }
+                    )
+                    : .constant(nil)        // otherwise pass nil
+                )
+                .environmentObject(eventService)
         }
         
         // Event detail sheet
@@ -84,7 +92,7 @@ struct ToDoView: View {
             }
             else {
                 EventDetailView(event: event) { updated in
-                    eventStore.updateEvent(updated)
+                    eventService.updateEvent(updated)
                 }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -93,9 +101,10 @@ struct ToDoView: View {
             }
         }
         
-        // Once we appear, ensure eventStore uses the correct authService
+        // Once we appear, ensure eventService uses the correct authService
         .onAppear {
-            eventStore.updateAuthService(authService)
+            eventService.updateAuthService(authService)
+            eventService.updateOverdueAndRefreshDates()
         }
     }
 }

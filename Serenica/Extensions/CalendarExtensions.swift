@@ -57,6 +57,32 @@ extension Date {
     func previousWeek() -> Date {
         Calendar.current.date(byAdding: .weekOfYear, value: -1, to: self)!
     }
+    
+    /// Returns thenew Date wuth the time of the provided date
+    func merge(withTimeFrom timeSource: Date) -> Date {
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: self)
+        let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: timeSource)
+        var mergedComps = DateComponents()
+        mergedComps.year = dateComponents.year
+        mergedComps.month = dateComponents.month
+        mergedComps.day = dateComponents.day
+        mergedComps.hour = timeComponents.hour
+        mergedComps.minute = timeComponents.minute
+        mergedComps.second = timeComponents.second
+        return calendar.date(from: mergedComps) ?? timeSource
+    }
+    
+    /// Returns the time interval since midnight for the date.
+    var timeSinceMidnight: TimeInterval {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: self)
+        let hours = Double(components.hour ?? 0)
+        let minutes = Double(components.minute ?? 0)
+        let seconds = Double(components.second ?? 0)
+        let nanoseconds = Double(components.nanosecond ?? 0)
+        return hours * 3600 + minutes * 60 + seconds + nanoseconds / 1_000_000_000
+    }
 }
 
 extension DateFormatter {

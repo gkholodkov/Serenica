@@ -27,16 +27,20 @@ enum Serenity {
         /// Secondary text (e.g. placeholders, hints) is a lighter gray
         static let textSecondary = Color(UIColor.secondaryLabel)  // #8E8E93
         
+        /// Deleteion and cancellation text color
+        static let textDanger = Color.red
+        
         /// Divider lines remain the same light gray
         static let divider = Color(hex: "E5E5EA")
         
-        // Chat-specific colors, also toned down
+        /// Chat-specific colors, also toned down
         static let messageBubbleUser = Color(UIColor.secondaryGreen)
         static let messageBubbleBot = Color(UIColor.systemGray6)
         
-        // Calendar specific colors
+        /// Calendar specific colors
         static let todayCellColor = Color(red: 241/255, green: 241/255, blue: 241/255)
         static let selectedCellColor = Color(red: 117/255, green: 117/255, blue: 117/255)
+        static let overdueEvent = Color.red
     }
     
     enum Typography {

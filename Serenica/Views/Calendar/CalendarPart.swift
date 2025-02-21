@@ -6,7 +6,7 @@ import SwiftUI
 struct CalendarPart: View {
     // External state
     @Binding var selectedDate: Date
-    let events: [Event]
+    @ObservedObject var eventService: EventService
     let onAddEvent: () -> Void
 
     // Instead of separate mode and gesture offset state, we use a single progress value.
@@ -86,7 +86,7 @@ struct CalendarPart: View {
             ZStack {
                 MonthCalendarGridView(
                     selectedDate: $selectedDate,
-                    events: events
+                    eventService: eventService
                 ) { dayDate in
                     selectedDate = dayDate
                 }
@@ -95,7 +95,7 @@ struct CalendarPart: View {
 
                 WeekCalendarGridView(
                     selectedDate: $selectedDate,
-                    events: events
+                    eventService: eventService
                 ) { dayDate in
                     selectedDate = dayDate
                 }
@@ -259,23 +259,24 @@ private enum CalendarViewMode {
 #Preview {
     CalendarPart(
         selectedDate: .constant(Date()),
-        events: [],
+        eventService: EventService(),
         onAddEvent: {}
     )
 }
 
 #Preview("With Events") {
-    CalendarPart(
+    let eventService = EventService()
+    let sampleEvent = Event(
+        title: "Sample Event",
+        startDate: Date(),
+        endDate: Date().addingTimeInterval(3600),
+        notes: "Sample notes",
+        userId: UUID()
+    )
+    eventService.addEvent(sampleEvent)
+    return CalendarPart(
         selectedDate: .constant(Date()),
-        events: [
-            Event(
-                title: "Sample Event",
-                startDate: Date(),
-                endDate: Date().addingTimeInterval(3600),
-                notes: "Sample notes",
-                userId: UUID()
-            )
-        ],
+        eventService: eventService,
         onAddEvent: {}
     )
 }

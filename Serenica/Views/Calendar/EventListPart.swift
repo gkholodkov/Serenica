@@ -2,26 +2,29 @@ import SwiftUI
 
 // MARK: - Main List View
 
-/// Displays a list of events for the given date without a header grouping.
-/// Each row shows a square checkbox on the left, the primary title, and a subheading
-/// that only displays the timespan.
+/// Displays a list of event occurrences for the given date without a header grouping.
+/// Each row shows a square checkbox on the left, the primary title, and a subheading that only displays the timespan.
 struct EventListPart: View {
-    @ObservedObject var eventStore: EventStore
+    @ObservedObject var eventService: EventService
     let selectedDate: Date
-
     /// Called when the user taps on an event row (excluding the checkbox).
     let onSelectEvent: (Event) -> Void
     
-    // New state variables for managing a pending toggle action.
-    @State private var pendingToggleEvent: Event? = nil
+    // Existing state variables for managing a pending toggle action.
+    @State private var pendingToggleCompleteEvent: Event? = nil
+    @State private var prendingToggleRemoveEvent: Event? = nil
     @State private var countdown: Int = 3
     // A timer publisher that fires every second.
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
+    // New state variables for deletion confirmation.
+    @State private var eventToDelete: EventOccurrence? = nil
+    @State private var showingDeletionConfirmation: Bool = false
+    
     var body: some View {
         ZStack {
             List {
-                if filteredEvents.isEmpty {
+                if filteredOccurrences.isEmpty {
                     Text("No tasks")
                         .font(Serenity.Typography.bodyText())
                         .foregroundColor(Serenity.Colors.textSecondary)
@@ -29,20 +32,23 @@ struct EventListPart: View {
                         // Hide the separator for this empty state row.
                         .listRowSeparator(.hidden)
                 } else {
-                    ForEach(filteredEvents) { event in
-                        EventRowView(
-                            event: event,
+                    ForEach(filteredOccurrences) { occurrence in
+                        EventOccurrenceRowView(
+                            occurrence: occurrence,
                             // Instead of immediately toggling, start the pending toggle action.
-                            onToggle: { startPendingToggle(for: event) },
-                            onTap: { onSelectEvent(event) },
-                            pendingToggleEvent: pendingToggleEvent
+                            onToggle: { startPendingToggle(for: occurrence.event) },
+                            onTap: { onSelectEvent(occurrence.event) },
+                            pendingToggleCompleteEvent: pendingToggleCompleteEvent,
+                            selectedDate: selectedDate
                         )
                         // Remove the divider/separator between rows.
                         .listRowSeparator(.hidden)
                     }
+                    // Instead of deleting immediately, trigger the confirmation dialog.
                     .onDelete { indexSet in
-                        for index in indexSet {
-                            eventStore.deleteEvent(withId: filteredEvents[index].id)
+                        if let index = indexSet.first {
+                            eventToDelete = filteredOccurrences[index]
+                            showingDeletionConfirmation = true
                         }
                     }
                 }
@@ -50,33 +56,64 @@ struct EventListPart: View {
             .listStyle(.plain)
             
             // When there's a pending toggle, overlay the custom alert at the bottom.
-            if pendingToggleEvent != nil {
+            if pendingToggleCompleteEvent != nil {
                 VStack {
                     Spacer()
                     CompletionUndoAlert(countdown: countdown, cancelAction: cancelPendingToggle)
                 }
                 .transition(.move(edge: .bottom))
-                .animation(.easeInOut, value: pendingToggleEvent)
+                .animation(.easeInOut, value: pendingToggleCompleteEvent)
             }
         }
         // Drive the countdown: if there's a pending toggle, decrease the count.
         .onReceive(timer) { _ in
-            guard pendingToggleEvent != nil else { return }
+            guard pendingToggleCompleteEvent != nil else { return }
             if countdown > 0 {
                 countdown -= 1
             } else {
                 // Countdown finished: perform the toggle and clear the pending state.
-                if let event = pendingToggleEvent {
-                    eventStore.toggleEventCompletion(event)
+                if let event = pendingToggleCompleteEvent {
+                    eventService.toggleEventCompletion(event, on: selectedDate)
                 }
-                pendingToggleEvent = nil
+                pendingToggleCompleteEvent = nil
             }
+        }
+        // Present the confirmation dialog when an event is pending deletion.
+        .confirmationDialog(
+            "Delete Event",
+            isPresented: $showingDeletionConfirmation,
+            titleVisibility: .hidden
+        ) {
+            if let event = eventToDelete?.event {
+                // For recurring events, offer two delete options.
+                if event.recurrenceType != .none {
+                    Button("Delete", role: .destructive) {
+                        eventService.deleteOccurrence(of: event, on: eventToDelete?.occurrenceStart ?? selectedDate)
+                        eventToDelete = nil
+                    }
+                    Button("Delete for all future events", role: .destructive) {
+                        eventService.deleteAllFutureOccurences(of: event, on: eventToDelete?.occurrenceStart ?? selectedDate)
+                        eventToDelete = nil
+                    }
+                } else {
+                    // For non-recurring events, offer only one delete option.
+                    Button("Delete", role: .destructive) {
+                        eventService.deleteEvent(withId: event.id, initialNotificationId: event.notificationId)
+                        eventToDelete = nil
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                eventToDelete = nil
+            }
+        } message: {
+            Text("The task will be deleted.")
         }
     }
     
     // Starts the pending toggle for an event.
     private func startPendingToggle(for event: Event) {
-        pendingToggleEvent = event
+        pendingToggleCompleteEvent = event
         countdown = 3
     }
 }
@@ -84,68 +121,62 @@ struct EventListPart: View {
 // MARK: - Filtering Helper
 
 extension EventListPart {
-    /// Returns all events that occur on the selected date.
-    private var filteredEvents: [Event] {
-        let selectedDayStart = Calendar.current.startOfDay(for: selectedDate)
-        return eventStore.events.filter { event in
-            guard let startDate = event.startDate,
-                  let endDate = event.endDate else { return false }
-            let startDay = Calendar.current.startOfDay(for: startDate)
-            let endDay = Calendar.current.startOfDay(for: endDate)
-            let rangeStart = min(startDay, endDay)
-            let rangeEnd = max(startDay, endDay)
-            return (rangeStart ... rangeEnd).contains(selectedDayStart)
-        }
+    /// Returns all event occurrences (both from non‑recurring and recurring events) that occur on the selected date.
+    private var filteredOccurrences: [EventOccurrence] {
+        eventService.occurrences(on: selectedDate)
     }
 }
 
 // MARK: - Row View
 
-/// Displays an individual event row with a checkbox and two lines of text.
-/// The primary text is the event title, and the secondary text shows only the timespan.
-private struct EventRowView: View {
-    let event: Event
+/// Displays an individual event occurrence row with a checkbox and two lines of text.
+private struct EventOccurrenceRowView: View {
+    let occurrence: EventOccurrence
     let onToggle: () -> Void
     let onTap: () -> Void
-    let pendingToggleEvent: Event?
-
+    let pendingToggleCompleteEvent: Event?
+    let selectedDate: Date
+    
     var body: some View {
         HStack(spacing: Serenity.Layout.smallPadding) {
+            // If the event is overdue, display a red vertical line.
+            if occurrence.event.isOverdue {
+                Rectangle()
+                    .fill(Serenity.Colors.overdueEvent)
+                    .frame(width: 4)
+            }
+            
             // MARK: Checkbox
             Button(action: onToggle) {
-                CheckboxView(isChecked: event.isCompleted || event.id == pendingToggleEvent?.id)
+                CheckboxView(isChecked: occurrence.event.isCompleted || occurrence.event.id == pendingToggleCompleteEvent?.id)
             }
             .buttonStyle(.plain)
             .frame(width: Serenity.Layout.minimumTapTarget, height: Serenity.Layout.minimumTapTarget)
-            .accessibilityLabel(event.isCompleted  ? "Mark as not completed" : "Mark as completed")
+            .accessibilityLabel(occurrence.event.isCompleted ? "Mark as not completed" : "Mark as completed")
             .accessibilityAddTraits(.isButton)
             
             // MARK: Text Content
             Button(action: onTap) {
                 VStack(alignment: .leading, spacing: Serenity.Layout.smallPadding) {
-                    // Primary text: event title
-                    Text(event.title)
+                    // Primary text: event title.
+                    Text(occurrence.event.title)
                         .font(Serenity.Typography.bodyText())
                         .foregroundColor(Serenity.Colors.textPrimary)
-                        .strikethrough(event.isCompleted || event.id == pendingToggleEvent?.id)
+                        .strikethrough(occurrence.event.isCompleted || occurrence.event.id == pendingToggleCompleteEvent?.id)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                     
-                    // Secondary text: only display timespan (omitting the date)
-                    if let startDate = event.startDate {
-                        HStack(spacing: 2) {
-                            Text(startDate.formatted(date: .omitted, time: .shortened))
-                            if let endDate = event.endDate {
-                                Text(" - ")
-                                Text(endDate.formatted(date: .omitted, time: .shortened))
-                                if (event.notificationId != nil) {
-                                    Image(systemName: "bell.badge")
-                                }
-                            }
+                    // Secondary text: display the occurrence's timespan.
+                    HStack(spacing: 2) {
+                        Text(Calendar.current.isDate(occurrence.occurrenceStart, inSameDayAs: selectedDate) ? occurrence.occurrenceStart.formatted(date: .omitted, time: .shortened) : "00:00")
+                        Text(" - ")
+                        Text(Calendar.current.isDate(occurrence.occurrenceEnd, inSameDayAs: selectedDate) ? occurrence.occurrenceEnd.formatted(date: .omitted, time: .shortened) : "00:00")
+                        if occurrence.event.notificationId != nil {
+                            Image(systemName: "bell.badge")
                         }
-                        .font(Serenity.Typography.caption())
-                        .foregroundColor(Serenity.Colors.textSecondary)
                     }
+                    .font(Serenity.Typography.caption())
+                    .foregroundColor(Serenity.Colors.textSecondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -160,7 +191,7 @@ private struct EventRowView: View {
 
 extension EventListPart {
     private func cancelPendingToggle() {
-        pendingToggleEvent = nil
+        pendingToggleCompleteEvent = nil
     }
 }
 
@@ -168,14 +199,14 @@ extension EventListPart {
 
 #Preview {
     EventListPart(
-        eventStore: EventStore(),
+        eventService: EventService(),
         selectedDate: Date()
     ) { _ in }
     .withPreviewDependencies()
 }
 
 #Preview("With Events") {
-    let eventStore = EventStore()
+    let eventService = EventService()
     let sampleEvent = Event(
         title: "Sample Event",
         startDate: Date(),
@@ -184,10 +215,10 @@ extension EventListPart {
         userId: UUID(),
         notificationId: UUID()
     )
-    eventStore.previewAddEvent(sampleEvent)
+    eventService.previewAddEvent(sampleEvent)
     
     return EventListPart(
-        eventStore: eventStore,
+        eventService: eventService,
         selectedDate: Date()
     ) { _ in }
     .withPreviewDependencies()

@@ -9,7 +9,7 @@ import SwiftUI
 ///  - showingEventSheet
 ///  - selectedEvent (shown in a sheet)
 struct EventListView: View {
-    @ObservedObject var eventStore: EventStore
+    @ObservedObject var eventService: EventService
     
     @Binding var selectedDate: Date
     @Binding var selectedEvent: Event?
@@ -20,7 +20,7 @@ struct EventListView: View {
             // 1) The calendar portion (header, month/week grid, drag logic)
             CalendarPart(
                 selectedDate: $selectedDate,
-                events: eventStore.events,
+                eventService: eventService,
                 onAddEvent: {
                     showingEventSheet = true
                 }
@@ -31,7 +31,7 @@ struct EventListView: View {
             
             // 2) The event list portion
             EventListPart(
-                eventStore: eventStore,
+                eventService: eventService,
                 selectedDate: selectedDate
             ) { event in
                 // user tapped an event row
@@ -44,7 +44,7 @@ struct EventListView: View {
 // MARK: - Preview
 #Preview {
     EventListView(
-        eventStore: EventStore(),
+        eventService: EventService(),
         selectedDate: .constant(Date()),
         selectedEvent: .constant(nil),
         showingEventSheet: .constant(false)
@@ -53,7 +53,7 @@ struct EventListView: View {
 }
 
 #Preview("With Events") {
-    let eventStore = EventStore()
+    let eventService = EventService()
     let sampleEvent = Event(
         title: "Sample Event",
         startDate: Date(),
@@ -61,10 +61,10 @@ struct EventListView: View {
         notes: "Sample notes",
         userId: UUID()
     )
-    eventStore.previewAddEvent(sampleEvent)
+    eventService.previewAddEvent(sampleEvent)
     
     return EventListView(
-        eventStore: eventStore,
+        eventService: eventService,
         selectedDate: .constant(Date()),
         selectedEvent: .constant(nil),
         showingEventSheet: .constant(false)

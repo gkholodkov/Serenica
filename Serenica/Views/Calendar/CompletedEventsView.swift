@@ -1,21 +1,35 @@
-//
-//  CompletedEventsView.swift
-//  Serenica
-//
-//  Created by Checkito12 on 31.01.25.
-//
-
 import SwiftUI
 
 /// Shows a list of all completed events, grouped by week and then by day.
 struct CompletedEventsView: View {
-    @ObservedObject var eventStore: EventStore
+    @ObservedObject var eventService: EventService
     @Binding var selectedEvent: Event?
+    
+    // New state variables for deletion confirmation.
+    @State private var eventToDelete: Event? = nil
+    @State private var showingDeletionConfirmation: Bool = false
     
     var body: some View {
         VStack(alignment: .leading) {
             headerView
             listView
+        }
+        .confirmationDialog(
+            "Delete Event",
+            isPresented: $showingDeletionConfirmation,
+            titleVisibility: .hidden
+        ) {
+            if let event = eventToDelete {
+                Button("Delete", role: .destructive) {
+                    eventService.deleteEvent(withId: event.id)
+                    eventToDelete = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                eventToDelete = nil
+            }
+        } message: {
+            Text("The task will be deleted.")
         }
     }
     
@@ -39,18 +53,16 @@ struct CompletedEventsView: View {
                         ForEach(dayGroup.1) { event in
                             EventRow(
                                 event: event,
-                                onToggle: {
-                                    eventStore.toggleEventCompletion(event)
-                                },
                                 onTap: {
                                     selectedEvent = event
                                 }
                             )
                         }
                         .onDelete { indexSet in
-                            for index in indexSet {
-                                let e = dayGroup.1[index]
-                                eventStore.deleteEvent(withId: e.id)
+                            // Only confirm deletion for the first selected event.
+                            if let index = indexSet.first {
+                                eventToDelete = dayGroup.1[index]
+                                showingDeletionConfirmation = true
                             }
                         }
                     }
@@ -64,7 +76,7 @@ struct CompletedEventsView: View {
     /// Groups completed events by day using the start of day.
     private var groupedCompletedTasks: [(Date, [Event])] {
         let calendar = Calendar.current
-        let groups = Dictionary(grouping: eventStore.completedEvents) { event in
+        let groups = Dictionary(grouping: eventService.completedEvents) { event in
             calendar.startOfDay(for: event.startDate ?? Date())
         }
         return groups.sorted { $0.key > $1.key }
@@ -126,25 +138,12 @@ struct CompletedEventsView: View {
 }
 
 // MARK: - EventRow (inline for this file)
-
 private struct EventRow: View {
     let event: Event
-    let onToggle: () -> Void
     let onTap: () -> Void
     
     var body: some View {
         HStack(spacing: Serenity.Layout.smallPadding) {
-            //// Checkbox with a checkmark icon or empty circle.
-            //Button(action: onToggle) {
-            //    CheckboxView(isChecked: event.isCompleted)
-            //}
-            //.buttonStyle(.plain)
-            //.frame(
-            //    width: Serenity.Layout.minimumTapTarget,
-            //    height: Serenity.Layout.minimumTapTarget
-            //)
-            
-            // Event title with strikethrough styling.
             Button(action: onTap) {
                 VStack(alignment: .leading, spacing: Serenity.Layout.smallPadding) {
                     Text(event.title)
@@ -176,14 +175,14 @@ private struct EventRow: View {
 // MARK: - Preview
 #Preview {
     CompletedEventsView(
-        eventStore: EventStore(),
+        eventService: EventService(),
         selectedEvent: .constant(nil)
     )
     .withPreviewDependencies()
 }
 
 #Preview("With Completed Events") {
-    let eventStore = EventStore()
+    let eventService = EventService()
     
     // Add some completed events for preview purposes.
     let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
@@ -217,10 +216,10 @@ private struct EventRow: View {
     ]
     
     // Add sample events to the store.
-    events.forEach { eventStore.previewAddEvent($0) }
+    events.forEach { eventService.previewAddEvent($0) }
     
     return CompletedEventsView(
-        eventStore: eventStore,
+        eventService: eventService,
         selectedEvent: .constant(nil)
     )
     .withPreviewDependencies()
