@@ -1,11 +1,3 @@
-//
-//  MessageStore.swift
-//  Serenica
-//
-//  Created by Checkito12 on 18.12.24.
-//
-
-
 import CoreData
 import SwiftUI
 

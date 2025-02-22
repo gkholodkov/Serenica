@@ -1,11 +1,3 @@
-//
-//  ToDoView.swift
-//  Serenica
-//
-//  Created by Checkito12 on 02.02.25.
-//
-
-
 import SwiftUI
 
 struct ToDoView: View {

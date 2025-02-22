@@ -1,10 +1,3 @@
-//
-//  Serenity.swift
-//  Serenica
-//
-//  Created by Checkito12 on 18.01.25.
-//
-
 import SwiftUI
 
 enum Serenity {

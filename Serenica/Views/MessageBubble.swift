@@ -1,11 +1,3 @@
-//
-//  MessageBubble.swift
-//  Serenica
-//
-//  Created by Checkito12 on 17.01.25.
-//
-
-
 import SwiftUI
 
 struct MessageBubble: View {

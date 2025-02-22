@@ -1,11 +1,3 @@
-//
-//  File.swift
-//  Serenica
-//
-//  Created by Checkito12 on 18.01.25.
-//
-
-
 #if DEBUG
 import SwiftUI
 import CoreData

@@ -1,10 +1,3 @@
-//
-//  SerenicaUITests.swift
-//  SerenicaUITests
-//
-//  Created by Checkito12 on 18.12.24.
-//
-
 import XCTest
 
 final class SerenicaUITests: XCTestCase {

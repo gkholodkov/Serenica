@@ -1,11 +1,3 @@
-//
-//  CompletedTaskDetailsView.swift
-//  Serenica
-//
-//  Created by Checkito12 on 08.02.25.
-//
-
-
 import SwiftUI
 
 // MARK: - TicketDetailsView

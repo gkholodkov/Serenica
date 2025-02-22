@@ -1,11 +1,3 @@
-//
-//  RecurrenceSelectorView.swift
-//  Serenica
-//
-//  Created by Checkito12 on 16.02.25.
-//
-
-
 import SwiftUI
 
 struct RecurrenceSelectorView: View {
@@ -14,6 +6,9 @@ struct RecurrenceSelectorView: View {
     @Binding var recurrenceInterval: Int
     @Binding var setRecurrenceEndDate: Bool
     @Binding var recurrenceEndDate: Date
+
+    /// New property to enforce that the recurrence end date is not before the event’s end date.
+    var minimumRecurrenceDate: Date = Date()
 
     var body: some View {
         Section(header: Text("Recurring")) {
@@ -35,7 +30,8 @@ struct RecurrenceSelectorView: View {
                 }
                 
                 if recurrenceType != .workingDays {
-                    Stepper("Repeat every \(recurrenceInterval) \(recurrenceType.unitName)", value: $recurrenceInterval, in: 1...30)
+                    Stepper("Repeat every \(recurrenceInterval) \(recurrenceType.unitName)",
+                            value: $recurrenceInterval, in: 1...30)
                 } else {
                     // For workingDays, just display the fixed interval.
                     Text("Repeat every \(recurrenceType.unitName)")
@@ -48,16 +44,33 @@ struct RecurrenceSelectorView: View {
                     DatePicker(
                         "End Date",
                         selection: $recurrenceEndDate,
-                        in: Date()...Date.distantFuture,
+                        in: minimumRecurrenceDate...Date.distantFuture,
                         displayedComponents: [.date]
                     )
+                    .onAppear {
+                        // Ensure the recurrenceEndDate isn't below the minimum.
+                        if recurrenceEndDate < minimumRecurrenceDate {
+                            recurrenceEndDate = minimumRecurrenceDate
+                        }
+                    }
+                    .onChange(of: minimumRecurrenceDate) { _, newMin in
+                        if recurrenceEndDate < newMin {
+                            recurrenceEndDate = newMin
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-
 #Preview {
-    RecurrenceSelectorView(isRecurring: .constant(true), recurrenceType: .constant(.monthly), recurrenceInterval: .constant(2), setRecurrenceEndDate: .constant(false), recurrenceEndDate: .constant(Date()))
+    RecurrenceSelectorView(
+        isRecurring: .constant(true),
+        recurrenceType: .constant(.monthly),
+        recurrenceInterval: .constant(2),
+        setRecurrenceEndDate: .constant(true),
+        recurrenceEndDate: .constant(Date().addingTimeInterval(86400)),
+        minimumRecurrenceDate: Date().addingTimeInterval(3600)
+    )
 }

@@ -1,11 +1,3 @@
-//
-//  AuthService.swift
-//  Serenica
-//
-//  Created by Checkito12 on 17.01.25.
-//
-
-
 import Foundation
 import CoreData
 

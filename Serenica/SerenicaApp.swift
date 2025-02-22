@@ -1,10 +1,3 @@
-//
-//  SerenicaApp.swift
-//  Serenica
-//
-//  Created by Checkito12 on 18.12.24.
-//
-
 import SwiftUI
 
 @main

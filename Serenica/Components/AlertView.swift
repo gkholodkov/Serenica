@@ -1,10 +1,3 @@
-//
-//  AlertView.swift
-//  Serenica
-//
-//  Created by Checkito12 on 07.02.25.
-//
-
 import SwiftUI
 
 // MARK: - Alert Configuration & Supporting Types

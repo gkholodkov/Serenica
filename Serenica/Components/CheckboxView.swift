@@ -1,10 +1,3 @@
-//
-//  CheckboxView.swift
-//  Serenica
-//
-//  Created by Checkito12 on 02.02.25.
-//
-
 import SwiftUI
 
 // MARK: - Custom Checkbox View

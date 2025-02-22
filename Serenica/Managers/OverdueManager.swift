@@ -2,14 +2,6 @@
 //  OverdueManager.swift
 //  Serenica
 //
-//  Created by Checkito12 on 15.02.25.
-//
-
-
-//
-//  OverdueManager.swift
-//  Serenica
-//
 //  This manager is responsible for updating overdue events.
 //  It separates logic for non-recurring events from recurring events.
 //  For recurring events, it leverages the EventRecurrenceManager.

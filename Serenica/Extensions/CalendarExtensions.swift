@@ -1,10 +1,3 @@
-//
-//  CalendarExtensions.swift
-//  Serenica
-//
-//  Created by Checkito12 on 31.01.25.
-//
-
 import Foundation
 
 extension Date {

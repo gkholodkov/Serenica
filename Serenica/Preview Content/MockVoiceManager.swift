@@ -1,11 +1,3 @@
-//
-//  MockVoiceManager.swift
-//  Serenica
-//
-//  Created by Checkito12 on 19.12.24.
-//
-
-
 import SwiftUI
 
 class MockVoiceManager: VoiceManaging {

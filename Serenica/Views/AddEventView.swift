@@ -26,7 +26,11 @@ struct AddEventView: View {
     // Store the original passed-in date (from calendar)
     @Binding var passedDate: Date?
     
-    /// Computes the lower bound for the start DatePicker.
+    // States for sheet presentation
+    @State private var showingStartDatePicker = false
+    @State private var showingEndDatePicker = false
+    
+    /// Computes the lower bound for the start date
     var startDateMinimum: Date {
         let calendar = Calendar.current
         if calendar.isDate(startDate, inSameDayAs: Date()) {
@@ -49,7 +53,6 @@ struct AddEventView: View {
                     Toggle("Assign a date", isOn: $hasDate)
                         .onChange(of: hasDate) { _, newValue in
                             if newValue, let passed = passedDate {
-                                // Merge the passed-in date with current time.
                                 let candidate = passed.merge(withTimeFrom: Date())
                                 startDate = candidate < Date() ? Date() : candidate
                                 endDate = startDate.addingTimeInterval(3600)
@@ -59,41 +62,29 @@ struct AddEventView: View {
                         }
                     
                     if hasDate {
-                        // Binding for the Start DatePicker.
-                        let startBinding = Binding<Date>(
-                            get: { startDate },
-                            set: { newStart in
-                                let calendar = Calendar.current
-                                let dayStart = calendar.startOfDay(for: newStart)
-                                let lowerBound = calendar.isDate(newStart, inSameDayAs: Date()) ? Date() : dayStart
-                                let clamped = max(newStart, lowerBound)
-                                startDate = clamped
-                                if clamped > endDate {
-                                    endDate = calendar.date(byAdding: .hour, value: 1, to: clamped)!
-                                }
+                        Button(action: { showingStartDatePicker = true }) {
+                            HStack {
+                                Text("Start")
+                                Spacer()
+                                Text(startDate, style: .date)
+                                Text(startDate, style: .time)
                             }
-                        )
+                        }
+                        .sheet(isPresented: $showingStartDatePicker) {
+                            DatePickerSheet(date: $startDate, minimumDate: startDateMinimum)
+                        }
                         
-                        // Binding for the End DatePicker.
-                        let endBinding = Binding<Date>(
-                            get: { endDate },
-                            set: { newEnd in
-                                endDate = max(newEnd, startDate)
+                        Button(action: { showingEndDatePicker = true }) {
+                            HStack {
+                                Text("End")
+                                Spacer()
+                                Text(endDate, style: .date)
+                                Text(endDate, style: .time)
                             }
-                        )
-                        
-                        DatePicker(
-                            "Start",
-                            selection: startBinding,
-                            in: startDateMinimum...Date.distantFuture,
-                            displayedComponents: [.date, .hourAndMinute]
-                        )
-                        DatePicker(
-                            "End",
-                            selection: endBinding,
-                            in: startDate...Date.distantFuture,
-                            displayedComponents: [.date, .hourAndMinute]
-                        )
+                        }
+                        .sheet(isPresented: $showingEndDatePicker) {
+                            DatePickerSheet(date: $endDate, minimumDate: startDate)
+                        }
                     }
                 }
                 
@@ -103,13 +94,14 @@ struct AddEventView: View {
                         .disabled(!hasDate)
                 }
                 
-                // Recurrence Section is now handled in a separate module.
+                // Recurrence Section
                 RecurrenceSelectorView(
                     isRecurring: $isRecurring,
                     recurrenceType: $recurrenceType,
                     recurrenceInterval: $recurrenceInterval,
                     setRecurrenceEndDate: $setRecurrenceEndDate,
-                    recurrenceEndDate: $recurrenceEndDate
+                    recurrenceEndDate: $recurrenceEndDate,
+                    minimumRecurrenceDate: endDate
                 )
                 
                 // Description Section
@@ -140,9 +132,17 @@ struct AddEventView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onChange(of: startDate) { _, newStart in
+                let calendar = Calendar.current
+                let dayStart = calendar.startOfDay(for: newStart)
+                let lowerBound = calendar.isDate(newStart, inSameDayAs: Date()) ? Date() : dayStart
+                startDate = max(newStart, lowerBound)
+                if newStart > endDate {
+                    endDate = calendar.date(byAdding: .hour, value: 1, to: newStart)!
+                }
+            }
         }
         .onAppear {
-            // Merge the passed date (if provided) with the current time.
             if let incoming = passedDate {
                 let now = Date()
                 let calendar = Calendar.current
@@ -166,7 +166,6 @@ struct AddEventView: View {
             return
         }
         
-        // Build the event with recurrence settings if applicable.
         let event = Event(
             title: title,
             startDate: hasDate ? startDate : nil,
@@ -179,7 +178,7 @@ struct AddEventView: View {
             recurrenceType: isRecurring ? recurrenceType : .none,
             recurrenceInterval: isRecurring ? recurrenceInterval : 0,
             recurrenceEndDate: (isRecurring && setRecurrenceEndDate) ? recurrenceEndDate : nil,
-            recurrenceExcludedDates: [] // Start with an empty array.
+            recurrenceExcludedDates: []
         )
         
         eventStore.addEvent(event)

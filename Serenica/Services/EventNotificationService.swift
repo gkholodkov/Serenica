@@ -2,14 +2,6 @@
 //  EventNotificationService.swift
 //  Serenica
 //
-//  Created by Checkito12 on 15.02.25.
-//
-
-
-//
-//  EventNotificationService.swift
-//  Serenica
-//
 //  Manages scheduling and removal of local notifications for events.
 //  This service decouples notification logic from the business and data layers.
 //

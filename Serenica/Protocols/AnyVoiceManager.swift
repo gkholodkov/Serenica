@@ -1,11 +1,3 @@
-//
-//  AnyVoiceManager.swift
-//  Serenica
-//
-//  Created by Checkito12 on 20.12.24.
-//
-
-
 import SwiftUI
 import Combine
 

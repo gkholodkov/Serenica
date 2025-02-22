@@ -1,10 +1,3 @@
-//
-//  EventsExtensions.swift
-//  Serenica
-//
-//  Created by Checkito12 on 06.02.25.
-//
-
 import Foundation
 
 extension Notification.Name {
