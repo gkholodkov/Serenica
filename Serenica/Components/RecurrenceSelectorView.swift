@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum ExpandedPicker: Hashable {
+    case start
+    case end
+    case recurrenceEnd
+}
+
 struct RecurrenceSelectorView: View {
     @Binding var isRecurring: Bool
     @Binding var recurrenceType: RecurrenceType
@@ -7,11 +13,14 @@ struct RecurrenceSelectorView: View {
     @Binding var setRecurrenceEndDate: Bool
     @Binding var recurrenceEndDate: Date
 
-    /// New property to enforce that the recurrence end date is not before the event’s end date.
-    var minimumRecurrenceDate: Date = Date()
+    /// Enforce that the recurrence end date is not before the event’s end date.
+    @Binding var minimumRecurrenceDate: Date
+
+    /// Bind to the parent’s expanded date picker state.
+    @Binding var expandedPicker: ExpandedPicker?
 
     var body: some View {
-        Section(header: Text("Recurring")) {
+        Section(header: Text("Recurrence")) {
             Toggle("Repeat Event", isOn: $isRecurring)
             
             if isRecurring {
@@ -41,21 +50,27 @@ struct RecurrenceSelectorView: View {
                 Toggle("End Repeat", isOn: $setRecurrenceEndDate)
                 
                 if setRecurrenceEndDate {
-                    DatePicker(
-                        "End Date",
-                        selection: $recurrenceEndDate,
-                        in: minimumRecurrenceDate...Date.distantFuture,
-                        displayedComponents: [.date]
-                    )
-                    .onAppear {
-                        // Ensure the recurrenceEndDate isn't below the minimum.
-                        if recurrenceEndDate < minimumRecurrenceDate {
-                            recurrenceEndDate = minimumRecurrenceDate
+                    VStack {
+                        Button(action: {
+                            withAnimation {
+                                expandedPicker = (expandedPicker == .recurrenceEnd) ? nil : .recurrenceEnd
+                            }
+                        }) {
+                            HStack {
+                                Text("Repeat Ends")
+                                Spacer()
+                                Text(recurrenceEndDate, style: .date)
+                                    .foregroundColor(expandedPicker == .recurrenceEnd ? Serenity.Colors.secondary : Serenity.Colors.primary)
+                            }
                         }
-                    }
-                    .onChange(of: minimumRecurrenceDate) { _, newMin in
-                        if recurrenceEndDate < newMin {
-                            recurrenceEndDate = newMin
+                        if expandedPicker == .recurrenceEnd {
+                            WheelDatePicker(date: $recurrenceEndDate, dateOnly: true, minimumDate: minimumRecurrenceDate)
+                                .frame(height: 216)
+                                .onChange(of: minimumRecurrenceDate) { _, newMin in
+                                    if recurrenceEndDate < newMin {
+                                        recurrenceEndDate = newMin
+                                    }
+                                }
                         }
                     }
                 }
@@ -71,6 +86,7 @@ struct RecurrenceSelectorView: View {
         recurrenceInterval: .constant(2),
         setRecurrenceEndDate: .constant(true),
         recurrenceEndDate: .constant(Date().addingTimeInterval(86400)),
-        minimumRecurrenceDate: Date().addingTimeInterval(3600)
+        minimumRecurrenceDate: .constant(Date().addingTimeInterval(3600)),
+        expandedPicker: .constant(nil)
     )
 }

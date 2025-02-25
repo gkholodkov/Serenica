@@ -2,13 +2,10 @@ import SwiftUI
 import CoreData
 
 struct MainTabView: View {
-    @StateObject private var authService: AuthService
+    @EnvironmentObject private var authService: AuthService
     @Environment(\.managedObjectContext) private var viewContext
-    
-    init(context: NSManagedObjectContext) {
-        _authService = StateObject(wrappedValue: AuthService(context: context))
-    }
-    
+
+    // Remove the custom initializer and StateObject creation.
     var body: some View {
         if authService.currentUser != nil {
             TabView {
@@ -26,9 +23,10 @@ struct MainTabView: View {
                         }
                 }
                 .tabItem {
-                    Image(systemName: "captions.bubble")                        .frame(width: 20, height: 20)
+                    Image(systemName: "captions.bubble")
+                        .frame(width: 20, height: 20)
                 }
-                
+
                 // Calendar tab
                 NavigationStack {
                     ToDoView()
@@ -46,15 +44,13 @@ struct MainTabView: View {
                 alignment: .top
             )
             .tint(Serenity.Colors.primary)
-            .environmentObject(authService)
         } else {
             AuthView()
-                .environmentObject(authService)
         }
     }
 }
 
 #Preview {
-    MainTabView(context: CoreDataManager.shared.viewContext)
+    MainTabView()
         .withPreviewDependencies()
 }

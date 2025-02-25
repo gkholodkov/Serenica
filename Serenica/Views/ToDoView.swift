@@ -12,6 +12,7 @@ struct ToDoView: View {
     @State private var selectedDate = Date()
     @State private var showingEventSheet = false
     @State private var selectedEvent: Event? = nil
+    @State private var selectedEventOccurrence: EventOccurrence? = nil
     
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +35,7 @@ struct ToDoView: View {
                     UnassignedEventsView(
                         eventService: eventService,
                         selectedEvent: $selectedEvent,
+                        selectedEventOccurrence: $selectedEventOccurrence,
                         showingEventSheet: $showingEventSheet
                     )
                 case 1:
@@ -42,6 +44,7 @@ struct ToDoView: View {
                         eventService: eventService,
                         selectedDate: $selectedDate,
                         selectedEvent: $selectedEvent,
+                        selectedEventOccurrence: $selectedEventOccurrence,
                         showingEventSheet: $showingEventSheet
                     )
                 default:
@@ -83,9 +86,22 @@ struct ToDoView: View {
                     .background(.ultraThickMaterial)
             }
             else {
-                EventDetailView(event: event) { updated in
-                    eventService.updateEvent(updated)
-                }
+                EventDetailView(
+                    event: event,
+                    occurrence: $selectedEventOccurrence,
+                    onSave: { updatedEvent in
+                        // Handle updating the event.
+                        eventService.updateEvent(updatedEvent)
+                    },
+                    onSaveOccurrence: { updatedOccurrence in
+                        // Handle updating only this single occurrence.
+                        eventService.updateSingleOccurrence(of: selectedEvent!, on: selectedDate, with: updatedOccurrence)
+                    },
+                    onSaveFutureOccurrences: { updatedOccurrence in
+                        // Handle updating all future occurrences of the event.
+                        eventService.updateAllFutureOccurrences(of: selectedEvent!, on: selectedDate, with: updatedOccurrence)
+                    }
+                )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .padding(.top, Serenity.Layout.standardPadding)

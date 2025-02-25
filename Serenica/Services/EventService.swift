@@ -208,6 +208,100 @@ class EventService: ObservableObject {
         }
     }
     
+    /// Updates a single occurrence of a recurring event.
+    /// - Parameters:
+    ///   - event: The recurring event to update.
+    ///   - date: The date (start of day) representing the occurrence being edited.
+    ///   - updatedOccurrence: An Event instance with the updated values from the occurrence editor.
+    ///
+    /// This method works by adding the target date to the recurring event’s excluded dates,
+    /// updating that series in the store, and then creating a new standalone (non‑recurring)
+    /// event for the edited occurrence.
+    func updateSingleOccurrence(of event: Event, on date: Date, with updatedOccurrence: Event) {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+        
+        
+        // Prepare the updated standalone occurrence event.
+        // This occurrence will not be recurring.
+        var occurrenceEvent = updatedOccurrence
+        occurrenceEvent.id = UUID() // assign a new unique id
+        occurrenceEvent.notificationId = updatedOccurrence.notificationId != nil ? UUID() : nil
+        occurrenceEvent.recurrenceType = .none
+        occurrenceEvent.recurrenceInterval = 0
+        occurrenceEvent.recurrenceEndDate = nil
+        occurrenceEvent.recurrenceExcludedDates = []
+        occurrenceEvent.isOverdue = updatedOccurrence.isOverdue && !updatedOccurrence.isCompleted && updatedOccurrence.endDate ?? Date() < Date()
+        // CASE 1: The target date is the first occurrence.
+        if let eventStart = event.startDate, calendar.isDate(eventStart, inSameDayAs: targetDay) {
+            // Add the updated occurrence as a standalone event.
+            addEvent(occurrenceEvent)
+            // Advance the recurring event to the next occurrence.
+            advanceRecurringEvent(event)
+            return
+        }
+                
+        // CASE 2: No further recurrences exist after targetDay (i.e. last occurrence).
+        else if nextOccurrence(for: event, after: targetDay) == nil {
+            // Add the updated occurrence as a standalone event.
+            addEvent(occurrenceEvent)
+            
+            // Update the recurring event's recurrenceEndDate to the target day.
+            var updatedRecurring = event
+            updatedRecurring.recurrenceEndDate = targetDay
+            
+            // Remove any excluded dates that occur after the target day.
+            if let excluded = updatedRecurring.recurrenceExcludedDates {
+                updatedRecurring.recurrenceExcludedDates = excluded.filter {
+                    calendar.compare($0, to: targetDay, toGranularity: .day) != .orderedDescending
+                }
+            }
+            updateEvent(updatedRecurring)
+            return
+        }
+        
+        // CASE 3: Intermediate occurrence.
+        else {
+            // Add the updated occurrence as a standalone event.
+            addEvent(occurrenceEvent)
+            
+            // Append the target date to the recurring event's excluded dates if not already present.
+            var updatedRecurring = event
+            var excludedDates = updatedRecurring.recurrenceExcludedDates ?? []
+            if !excludedDates.contains(where: { calendar.isDate($0, inSameDayAs: targetDay) }) {
+                excludedDates.append(targetDay)
+            }
+            updatedRecurring.recurrenceExcludedDates = excludedDates
+            updateEvent(updatedRecurring)
+            return
+        }
+    }
+    
+    func updateAllFutureOccurrences(of event: Event, on date: Date, with updatedOccurrence: Event) {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+        
+        if let eventStart = event.startDate, calendar.isDate(eventStart, inSameDayAs: targetDay) {
+            // Simply advance the recurring event to the next occurrence.
+            updateEvent(updatedOccurrence, initialNotificationId: event.notificationId)
+            return
+        }
+        var occurrenceEvent = updatedOccurrence
+        occurrenceEvent.id = UUID() // assign a new unique id
+        addEvent(occurrenceEvent)
+        
+        var updatedEvent = event
+        updatedEvent.recurrenceEndDate = targetDay
+        if let excluded = updatedEvent.recurrenceExcludedDates {
+            updatedEvent.recurrenceExcludedDates = excluded.filter {
+                calendar.compare($0, to: targetDay, toGranularity: .day) != .orderedDescending
+            }
+        }
+        updateEvent(updatedEvent)
+        return
+    }
+
+    
     func deleteEvent(withId id: UUID, initialNotificationId: UUID? = nil) {
         do {
             try repository.deleteEvent(withId: id)

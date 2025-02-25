@@ -13,6 +13,7 @@ struct EventListView: View {
     
     @Binding var selectedDate: Date
     @Binding var selectedEvent: Event?
+    @Binding var selectedEventOccurrence: EventOccurrence?
     @Binding var showingEventSheet: Bool
     
     var body: some View {
@@ -33,9 +34,11 @@ struct EventListView: View {
             EventListPart(
                 eventService: eventService,
                 selectedDate: selectedDate
-            ) { event in
+            ) { occurrence in
                 // user tapped an event row
-                selectedEvent = event
+                selectedEvent = occurrence.event
+                selectedEventOccurrence = occurrence
+                print(eventService.recurringEvents)
             }
         }
     }
@@ -47,6 +50,7 @@ struct EventListView: View {
         eventService: EventService(),
         selectedDate: .constant(Date()),
         selectedEvent: .constant(nil),
+        selectedEventOccurrence: .constant(nil),
         showingEventSheet: .constant(false)
     )
     .withPreviewDependencies()
@@ -67,6 +71,7 @@ struct EventListView: View {
         eventService: eventService,
         selectedDate: .constant(Date()),
         selectedEvent: .constant(nil),
+        selectedEventOccurrence: .constant(nil),
         showingEventSheet: .constant(false)
     )
     .withPreviewDependencies()

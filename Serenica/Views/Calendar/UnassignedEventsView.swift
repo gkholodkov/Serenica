@@ -4,6 +4,7 @@ import SwiftUI
 struct UnassignedEventsView: View {
     @ObservedObject var eventService: EventService
     @Binding var selectedEvent: Event?
+    @Binding var selectedEventOccurrence: EventOccurrence?
     @Binding var showingEventSheet: Bool
     
     // New state variables for deletion confirmation.
@@ -48,7 +49,10 @@ struct UnassignedEventsView: View {
                         UnassignedEventRowView(
                             event: event,
                             onToggle: { eventService.toggleEventCompletion(event, on: Date()) },
-                            onTap: { selectedEvent = event }
+                            onTap: {
+                                selectedEvent = event
+                                selectedEventOccurrence = nil
+                            }
                         )
                         .listRowSeparator(.hidden)
                     }
@@ -126,6 +130,7 @@ private struct UnassignedEventRowView: View {
     UnassignedEventsView(
         eventService: EventService(),
         selectedEvent: .constant(nil),
+        selectedEventOccurrence: .constant(nil),
         showingEventSheet: .constant(false)
     )
     .withPreviewDependencies()
@@ -158,6 +163,7 @@ private struct UnassignedEventRowView: View {
     return UnassignedEventsView(
         eventService: eventService,
         selectedEvent: .constant(nil),
+        selectedEventOccurrence: .constant(nil),
         showingEventSheet: .constant(false)
     )
     .withPreviewDependencies()

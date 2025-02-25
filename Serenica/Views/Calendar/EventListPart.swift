@@ -8,7 +8,7 @@ struct EventListPart: View {
     @ObservedObject var eventService: EventService
     let selectedDate: Date
     /// Called when the user taps on an event row (excluding the checkbox).
-    let onSelectEvent: (Event) -> Void
+    let onSelectEvent: (EventOccurrence) -> Void
     
     // Existing state variables for managing a pending toggle action.
     @State private var pendingToggleCompleteEvent: Event? = nil
@@ -37,7 +37,7 @@ struct EventListPart: View {
                             occurrence: occurrence,
                             // Instead of immediately toggling, start the pending toggle action.
                             onToggle: { startPendingToggle(for: occurrence.event) },
-                            onTap: { onSelectEvent(occurrence.event) },
+                            onTap: { onSelectEvent(occurrence) },
                             pendingToggleCompleteEvent: pendingToggleCompleteEvent,
                             selectedDate: selectedDate
                         )
@@ -95,6 +95,10 @@ struct EventListPart: View {
                         eventService.deleteAllFutureOccurences(of: event, on: eventToDelete?.occurrenceStart ?? selectedDate)
                         eventToDelete = nil
                     }
+                    Button("Delete for all events", role: .destructive) {
+                        eventService.deleteEvent(withId: event.id, initialNotificationId: event.notificationId)
+                        eventToDelete = nil
+                    }
                 } else {
                     // For non-recurring events, offer only one delete option.
                     Button("Delete", role: .destructive) {
@@ -140,7 +144,7 @@ private struct EventOccurrenceRowView: View {
     var body: some View {
         HStack(spacing: Serenity.Layout.smallPadding) {
             // If the event is overdue, display a red vertical line.
-            if occurrence.event.isOverdue {
+            if occurrence.event.isOverdue && occurrence.occurrenceStart == occurrence.event.startDate {
                 Rectangle()
                     .fill(Serenity.Colors.overdueEvent)
                     .frame(width: 4)
