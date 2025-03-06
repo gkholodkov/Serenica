@@ -223,8 +223,9 @@ struct AddEventView: View {
     }
 }
 
-
+/*
 #Preview {
     AddEventView(passedDate: .constant(Date()))
         .withPreviewDependencies()
 }
+*/

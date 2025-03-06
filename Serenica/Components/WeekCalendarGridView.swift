@@ -11,9 +11,6 @@ struct WeekCalendarGridView: View {
 
     // Tracks if the user has explicitly selected a day.
     @State private var userHasSelected: Bool = false
-    
-    // Allows developers to set specific condition for date opacity change
-    var specialDate: Date = Date().startOfDay()
 
     // Seven columns with no extra inter-column spacing.
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
@@ -30,10 +27,9 @@ struct WeekCalendarGridView: View {
                         Calendar.current.isDate(calendarDay.date, inSameDayAs: selectedDate),
                     isToday: calendarDay.isCurrentMonth && Calendar.current.isDate(calendarDay.date, inSameDayAs: Date()),
                     isPast: calendarDay.isCurrentMonth && calendarDay.date < Date().startOfDay(),
-                    isNotChoosable: calendarDay.isCurrentMonth && calendarDay.date < specialDate,
                     hasEvents: calendarDay.isCurrentMonth ? eventService.hasOccurrence(on: calendarDay.date) : false,
                     onTap: {
-                        if calendarDay.isCurrentMonth && calendarDay.date >= Date().startOfDay() {
+                        if calendarDay.date >= Date().startOfDay() {
                             userHasSelected = true
                             onSelectDay(calendarDay.date)
                         }
@@ -86,7 +82,6 @@ private struct DayCellView: View {
     let isSelected: Bool
     let isToday: Bool
     let isPast: Bool
-    let isNotChoosable: Bool
     let hasEvents: Bool
     let onTap: () -> Void
 
@@ -107,7 +102,7 @@ private struct DayCellView: View {
             }
         }
         // Disable tapping for cells that are either not in the active month or represent past dates.
-        .disabled(!isCurrentMonth || isPast)
+        .disabled(isPast)
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
     }
@@ -133,7 +128,7 @@ private struct DayCellView: View {
             return .white
         } else if !isCurrentMonth {
             return Color.gray.opacity(0.3)
-        } else if isPast || isNotChoosable {
+        } else if isPast {
             return Color.gray.opacity(0.6)
         } else {
             return Serenity.Colors.textPrimary
@@ -150,8 +145,9 @@ private struct DayCellView: View {
     ) { _ in }
 }
 
+/*
 #Preview("With Events") {
-    let today = Date()
+    var date = Date()
     let eventService = EventService()
     let sampleEvent = Event(
         title: "Sample Event",
@@ -163,7 +159,7 @@ private struct DayCellView: View {
     eventService.previewAddEvent(sampleEvent)
     
     return WeekCalendarGridView(
-        selectedDate: .constant(today),
+        selectedDate: .constant(date),
         eventService: eventService
-    ) { _ in }
-}
+    ) { newDate in date = newDate }
+} */

@@ -213,9 +213,8 @@ struct EventDetailView: View {
                             Button("Update This Occurrence", role: .none) {
                                 if let onSaveOccurrence = onSaveOccurrence {
                                     onSaveOccurrence(updated)
-                                } else {
-                                    onSave(updated)
                                 }
+                                dismiss()
                             }
                         }
                         Button("Update All Future Occurrences", role: .none) {
@@ -234,18 +233,18 @@ struct EventDetailView: View {
             }
         }
         .onAppear {
-            // Initialize state only once when the view appears.
             if initialEvent == nil {
                 initialNow = Date()
-                initialEvent = event
                 if let occ = occurrence {
                     var modified = event
                     modified.startDate = occ.occurrenceStart
                     modified.endDate = occ.occurrenceEnd
                     editableEvent = modified
+                    initialEvent = modified  // Assign modified event to initialEvent as well.
                     hasDate = true
                 } else {
                     editableEvent = event
+                    initialEvent = event
                     hasDate = event.startDate != nil
                 }
                 alertConfig = Self.defaultAlertConfig(from: event)
@@ -318,6 +317,7 @@ struct EventDetailView: View {
     }
 }
 
+/*
 #Preview {
     // Preview for non‑recurring event (confirmation dialog will not appear).
     EventDetailView(
@@ -381,3 +381,4 @@ struct EventDetailView: View {
     )
     .withPreviewDependencies()
 }
+*/

@@ -1,6 +1,9 @@
 import SwiftUI
 
 /// Shows a list of all completed events, grouped by week and then by day.
+/// Events spanning multiple days will appear on each day. On days before
+/// the actual start, a default start time of 00:00 is shown; on days after
+/// the actual end, a default end time of 23:59 is shown.
 struct CompletedEventsView: View {
     @ObservedObject var eventService: EventService
     @Binding var selectedEvent: Event?
@@ -40,46 +43,80 @@ struct CompletedEventsView: View {
             .padding([.horizontal, .top])
     }
     
-    // MARK: - List View
-    private var listView: some View {
-        List {
-            ForEach(groupedByWeek, id: \.weekKey) { weekGroup in
-                ForEach(weekGroup.days, id: \.0) { dayGroup in
-                    Section(header: sectionHeader(
-                        weekKey: weekGroup.weekKey,
-                        firstDay: weekGroup.days.first?.0 ?? dayGroup.0,
-                        day: dayGroup.0
-                    )) {
-                        ForEach(dayGroup.1) { event in
-                            EventRow(
-                                event: event,
-                                onTap: {
-                                    selectedEvent = event
-                                }
-                            )
-                        }
-                        .onDelete { indexSet in
-                            // Only confirm deletion for the first selected event.
-                            if let index = indexSet.first {
-                                eventToDelete = dayGroup.1[index]
-                                showingDeletionConfirmation = true
-                            }
-                        }
-                    }
-                }
+    // MARK: - Daily Event Grouping
+    /// For events that may span multiple days, create one entry per day.
+    /// For each day, if it is not the start day, we use 00:00 as the start time;
+    /// if it is not the end day, we use 23:59 as the end time.
+    private var dailyEvents: [(day: Date, events: [DailyEvent])] {
+        let calendar = Calendar.current
+        var dailyEventList: [DailyEvent] = []
+        
+        for event in eventService.completedEvents {
+            // Assume a valid startDate; if nil, skip the event.
+            guard let start = event.startDate else { continue }
+            let end = event.endDate ?? start
+            let startDay = calendar.startOfDay(for: start)
+            let endDay = calendar.startOfDay(for: end)
+            
+            var day = startDay
+            while day <= endDay {
+                // On the start day, use the event's start time; otherwise, use 00:00.
+                let displayStart = calendar.isDate(day, inSameDayAs: start) ? start : day
+                // On the end day, use the event's end time; otherwise, use 23:59.
+                let displayEnd = calendar.isDate(day, inSameDayAs: end)
+                    ? end
+                    : (calendar.date(bySettingHour: 23, minute: 59, second: 0, of: day) ?? day)
+                
+                let dailyEvent = DailyEvent(
+                    id: "\(event.id)-\(day)",
+                    event: event,
+                    day: day,
+                    displayStart: displayStart,
+                    displayEnd: displayEnd
+                )
+                dailyEventList.append(dailyEvent)
+                
+                guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+                day = nextDay
             }
         }
-        .listStyle(.plain)
+        
+        // Group daily events by day
+        let groups = Dictionary(grouping: dailyEventList, by: { $0.day })
+        // Sort groups descending (most recent day first)
+        let sortedGroups = groups.sorted { $0.key > $1.key }
+        // Map dictionary elements to tuples with label names matching our return type.
+        return sortedGroups.map { (day: $0.key, events: $0.value) }
     }
     
-    // MARK: - Grouping Completed Tasks by Day
-    /// Groups completed events by day using the start of day.
-    private var groupedCompletedTasks: [(Date, [Event])] {
+    // MARK: - Grouping by Week
+    /// Groups daily events into weeks.
+    private var groupedByWeek: [(weekKey: WeekKey, days: [(day: Date, events: [DailyEvent])])] {
         let calendar = Calendar.current
-        let groups = Dictionary(grouping: eventService.completedEvents) { event in
-            calendar.startOfDay(for: event.startDate ?? Date())
+        let dayGroups = dailyEvents
+        
+        // Group by week
+        let weekGroups = Dictionary(grouping: dayGroups) { (dayGroup) -> WeekKey in
+            let components = calendar.dateComponents([.year, .weekOfYear], from: dayGroup.day)
+            return WeekKey(year: components.year ?? 0, week: components.weekOfYear ?? 0)
         }
-        return groups.sorted { $0.key > $1.key }
+        
+        // Sort the week groups.
+        let sortedWeekGroups = weekGroups.sorted { (lhs, rhs) -> Bool in
+            if lhs.key.year == rhs.key.year {
+                return lhs.key.week > rhs.key.week
+            } else {
+                return lhs.key.year > rhs.key.year
+            }
+        }
+        
+        // Map into the expected return type using a simple loop.
+        var result: [(weekKey: WeekKey, days: [(day: Date, events: [DailyEvent])])] = []
+        for (key, days) in sortedWeekGroups {
+            let sortedDays = days.sorted { $0.day > $1.day }
+            result.append((weekKey: key, days: sortedDays))
+        }
+        return result
     }
     
     // MARK: - WeekKey Definition
@@ -87,28 +124,6 @@ struct CompletedEventsView: View {
     private struct WeekKey: Hashable {
         let year: Int
         let week: Int
-    }
-    
-    // MARK: - Grouping by Week
-    /// Groups the already grouped (by day) events into weeks.
-    private var groupedByWeek: [(weekKey: WeekKey, days: [(Date, [Event])])] {
-        let calendar = Calendar.current
-        let dayGroups = groupedCompletedTasks
-        let weekGroups = Dictionary(grouping: dayGroups) { (date, _) -> WeekKey in
-            let components = calendar.dateComponents([.year, .weekOfYear], from: date)
-            return WeekKey(year: components.year ?? 0, week: components.weekOfYear ?? 0)
-        }
-        let sortedWeekGroups = weekGroups.sorted { lhs, rhs in
-            if lhs.key.year == rhs.key.year {
-                return lhs.key.week > rhs.key.week
-            } else {
-                return lhs.key.year > rhs.key.year
-            }
-        }
-        return sortedWeekGroups.map { (key, days) in
-            let sortedDays = days.sorted { $0.0 > $1.0 }
-            return (weekKey: key, days: sortedDays)
-        }
     }
     
     // MARK: - Section Header for Week and Day
@@ -135,34 +150,69 @@ struct CompletedEventsView: View {
             .foregroundColor(Serenity.Colors.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
+    
+    // MARK: - List View
+    private var listView: some View {
+        List {
+            ForEach(groupedByWeek, id: \.weekKey) { weekGroup in
+                ForEach(weekGroup.days, id: \.day) { dayGroup in
+                    Section(header: sectionHeader(
+                        weekKey: weekGroup.weekKey,
+                        firstDay: weekGroup.days.first?.day ?? dayGroup.day,
+                        day: dayGroup.day
+                    )) {
+                        ForEach(dayGroup.events) { dailyEvent in
+                            EventRow(
+                                dailyEvent: dailyEvent,
+                                onTap: { selectedEvent = dailyEvent.event }
+                            )
+                        }
+                        .onDelete { indexSet in
+                            if let index = indexSet.first {
+                                eventToDelete = dayGroup.events[index].event
+                                showingDeletionConfirmation = true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.plain)
+    }
 }
 
-// MARK: - EventRow (inline for this file)
-private struct EventRow: View {
+// MARK: - DailyEvent Definition
+/// Changed from private to fileprivate so it's accessible by other views in this file.
+fileprivate struct DailyEvent: Identifiable {
+    let id: String
     let event: Event
+    let day: Date
+    let displayStart: Date
+    let displayEnd: Date
+}
+
+// MARK: - EventRow (Updated to use DailyEvent)
+private struct EventRow: View {
+    let dailyEvent: DailyEvent
     let onTap: () -> Void
     
     var body: some View {
         HStack(spacing: Serenity.Layout.smallPadding) {
             Button(action: onTap) {
                 VStack(alignment: .leading, spacing: Serenity.Layout.smallPadding) {
-                    Text(event.title)
+                    Text(dailyEvent.event.title)
                         .font(Serenity.Typography.bodyText())
-                        .strikethrough(event.isCompleted)
+                        .strikethrough(dailyEvent.event.isCompleted)
                         .foregroundColor(Serenity.Colors.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
-                    if let startDate = event.startDate {
-                        HStack(spacing: 2) {
-                            Text(startDate.formatted(date: .omitted, time: .shortened))
-                            if let endDate = event.endDate {
-                                Text(" - ")
-                                Text(endDate.formatted(date: .omitted, time: .shortened))
-                            }
-                        }
-                        .font(Serenity.Typography.caption())
-                        .foregroundColor(Serenity.Colors.textSecondary)
+                    HStack(spacing: 2) {
+                        Text(dailyEvent.displayStart.formatted(date: .omitted, time: .shortened))
+                        Text(" - ")
+                        Text(dailyEvent.displayEnd.formatted(date: .omitted, time: .shortened))
                     }
+                    .font(Serenity.Typography.caption())
+                    .foregroundColor(Serenity.Colors.textSecondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -172,6 +222,7 @@ private struct EventRow: View {
     }
 }
 
+/*
 // MARK: - Preview
 #Preview {
     CompletedEventsView(
@@ -198,18 +249,10 @@ private struct EventRow: View {
             isCompleted: true
         ),
         Event(
-            title: "Completed yesterday",
-            startDate: yesterday,
-            endDate: yesterday.addingTimeInterval(3600),
-            notes: "Yesterday's task",
-            userId: UUID(),
-            isCompleted: true
-        ),
-        Event(
-            title: "Completed two days ago",
+            title: "Multi-day event",
             startDate: twoDaysAgo,
-            endDate: twoDaysAgo.addingTimeInterval(3600),
-            notes: "Old task",
+            endDate: yesterday,
+            notes: "Spanning multiple days",
             userId: UUID(),
             isCompleted: true
         )
@@ -223,4 +266,4 @@ private struct EventRow: View {
         selectedEvent: .constant(nil)
     )
     .withPreviewDependencies()
-}
+} */

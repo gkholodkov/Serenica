@@ -1,21 +1,22 @@
 import SwiftUI
 
 // MARK: - CalendarPart
-/// This view orchestrates the calendar display by hosting the header, a fixed weekday header row,
-/// and an animated grid container that cross–fades between Month and Week grid views.
+/// A calendar view that cross-fades and repositions its month and week grid views
+/// based on a fully responsive vertical drag gesture, and navigates via horizontal drags.
 struct CalendarPart: View {
     // External state
     @Binding var selectedDate: Date
     @ObservedObject var eventService: EventService
     let onAddEvent: () -> Void
 
-    // Instead of separate mode and gesture offset state, we use a single progress value.
-    // 0.0 means “month view” and 1.0 means “week view”.
+    // MARK: Internal State
+    /// progress: 0.0 is fully month view; 1.0 is fully week view.
     @State private var progress: CGFloat = 0.0
-    // This is used to capture the progress at the start of a drag gesture.
+    /// Captures the progress when the drag begins.
     @State private var initialProgress: CGFloat = 0.0
+    @State private var isDragging: Bool = false
 
-    // MARK: Grid Height Constants (grid only)
+    // MARK: Grid Height Constants
     private let monthGridHeight: CGFloat = 350
     private let weekGridHeight: CGFloat  = 80
 
@@ -24,34 +25,27 @@ struct CalendarPart: View {
         monthGridHeight - weekGridHeight
     }
 
-    /// Derived “mode” for convenience.
-    /// (When progress is exactly 0 or 1, we’re fully in month or week mode respectively.)
+    // MARK: Derived Properties
+    /// Determines whether we’re showing month or week mode.
     private var currentMode: CalendarViewMode {
         progress < 0.5 ? .month : .week
     }
 
-    /// Interpolated grid height.
+    /// Interpolated grid height based on current progress.
     private var interpolatedGridHeight: CGFloat {
         monthGridHeight - progress * totalDragDistance
     }
 
-    /// Opacity for the month view (fades out as progress → 1).
-    private var monthOpacity: Double {
-        Double(1 - progress)
-    }
+    /// Opacity values for cross-fading between views.
+    private var monthOpacity: Double { Double(1 - progress) }
+    private var weekOpacity: Double { Double(progress) }
 
-    /// Opacity for the week view (fades in as progress → 1).
-    private var weekOpacity: Double {
-        Double(progress)
-    }
-
-    /// Computes a vertical offset for the month grid so that the row containing the selected date
-    /// aligns to the top when fully in week view.
+    /// Computes the vertical offset for the month grid so that the row containing the
+    /// selected date aligns to the top when in week view.
     private var selectedWeekOffset: CGFloat {
         let calendar = Calendar.current
         let startOfMonth = selectedDate.startOfMonth()
         let firstOfMonthWeekday = calendar.component(.weekday, from: startOfMonth)
-        // Number of leading cells (from previous month)
         let leadingDays = (firstOfMonthWeekday - calendar.firstWeekday + 7) % 7
         let day = calendar.component(.day, from: selectedDate)
         let gridIndex = leadingDays + (day - 1)
@@ -60,17 +54,7 @@ struct CalendarPart: View {
         return weekIndex * rowHeight
     }
 
-    /// When in week view, we do not allow navigating to weeks earlier than the week containing today.
-    private var canNavigateToPreviousWeek: Bool {
-        if currentMode == .week {
-            let currentWeekStart = Date().startOfWeek()
-            let selectedWeekStart = selectedDate.startOfWeek()
-            return selectedWeekStart > currentWeekStart
-        }
-        return true // In month mode, no such constraint.
-    }
-
-    /// For the month grid, as progress moves from 0 to 1, we translate upward so that the selected row aligns.
+    /// The month grid moves upward proportionally so that its selected week aligns.
     private var monthGridOffset: CGFloat {
         -selectedWeekOffset * progress
     }
@@ -78,12 +62,11 @@ struct CalendarPart: View {
     var body: some View {
         VStack(spacing: 0) {
             calendarHeader
-
-            // Fixed weekday header.
             weekdayHeader
 
-            // Animated grid container cross-fading between Month and Week views.
+            // Animated container that cross-fades between Month and Week grid views.
             ZStack {
+                // Month grid view
                 MonthCalendarGridView(
                     selectedDate: $selectedDate,
                     eventService: eventService
@@ -93,6 +76,7 @@ struct CalendarPart: View {
                 .opacity(monthOpacity)
                 .offset(y: monthGridOffset)
 
+                // Week grid view
                 WeekCalendarGridView(
                     selectedDate: $selectedDate,
                     eventService: eventService
@@ -104,62 +88,82 @@ struct CalendarPart: View {
             .frame(height: interpolatedGridHeight)
             .padding(.horizontal, 10)
             .clipped()
-            .gesture(
-                DragGesture()
+            // Vertical drag for the responsive transition
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 5)
                     .onChanged { value in
-                        // On the very first update of a drag, capture the current progress.
-                        if value.translation == .zero {
+                        if !isDragging {
+                            isDragging = true
                             initialProgress = progress
                         }
-                        // Update progress based on the vertical translation.
-                        // In month view (initialProgress == 0), dragging up (negative translation)
-                        // increases progress; in week view (initialProgress == 1), dragging down (positive)
-                        // decreases progress.
-                        let delta = value.translation.height / totalDragDistance
+                        
+                        // Calculate vertical progress change.
+                        let dragFactor: CGFloat = 0.9
+                        let delta = (value.translation.height / totalDragDistance) * dragFactor
                         let newProgress = initialProgress - delta
                         progress = min(max(newProgress, 0), 1)
                     }
-                    .onEnded { _ in
-                        // Snap to the nearest “mode” based on a threshold.
-                        // Here we use 0.5; you could tweak this value if needed.
-                        let target: CGFloat = progress >= 0.5 ? 1 : 0
-                        withAnimation(.easeInOut) {
+                    .onEnded { value in
+                        isDragging = false
+                        
+                        // Snap to either mode based on final progress and gesture velocity.
+                        let velocity = value.predictedEndTranslation.height - value.translation.height
+                        let velocityThreshold: CGFloat = 50
+                        let target: CGFloat = abs(velocity) > velocityThreshold
+                            ? (velocity < 0 ? 1 : 0)
+                            : (progress >= 0.5 ? 1 : 0)
+                        withAnimation(.easeInOut(duration: 0.2)) {
                             progress = target
                         }
                     }
             )
+            // Horizontal drag for navigating to previous/next month or week.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        // Ensure the drag is predominantly horizontal.
+                        if abs(value.translation.width) > abs(value.translation.height) {
+                            let threshold: CGFloat = 50
+                            if value.translation.width < -threshold {
+                                // Swipe left: navigate forward.
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if currentMode == .month {
+                                        selectedDate = selectedDate.nextMonth()
+                                    } else {
+                                        selectedDate = selectedDate.nextWeek()
+                                    }
+                                }
+                            } else if value.translation.width > threshold {
+                                // Swipe right: navigate backward.
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if currentMode == .month {
+                                        let candidate = selectedDate.previousMonth()
+                                        let earliestMonth = Date().startOfMonth()
+                                        if candidate >= earliestMonth {
+                                            selectedDate = candidate
+                                        }
+                                    } else {
+                                        if canNavigateToPreviousWeek {
+                                            selectedDate = selectedDate.previousWeek()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+            )
+            .onChange(of: selectedDate) { _, _ in
+                // When the date is changed externally, maintain the current progress.
+            }
         }
     }
 }
 
 // MARK: - View Components & Gestures
 extension CalendarPart {
-    /// The header with navigation arrows, a “Today” button, and an add-event button.
+    /// The header with navigation arrows (now unused), a "Today" button, and an add-event button.
     private var calendarHeader: some View {
         HStack {
-            // Left Arrow: In month view, goes to the previous month;
-            // in week view, goes to the previous week (if allowed).
-            Button {
-                withAnimation {
-                    if currentMode == .month {
-                        let candidate = selectedDate.previousMonth()
-                        let earliestMonth = Date().startOfMonth()
-                        if candidate >= earliestMonth { selectedDate = candidate }
-                    } else {
-                        if canNavigateToPreviousWeek {
-                            selectedDate = selectedDate.previousWeek()
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "chevron.left")
-                    .foregroundColor(Serenity.Colors.primary)
-                    .font(.title3)
-            }
-            .frame(width: Serenity.Layout.minimumTapTarget)
-            .disabled(currentMode == .week ? !canNavigateToPreviousWeek : false)
-
-            // Today Button: Resets selectedDate to today.
             Button {
                 withAnimation {
                     selectedDate = Date()
@@ -178,56 +182,34 @@ extension CalendarPart {
 
             Spacer()
 
-            // Header Title: Varies based on the current mode.
-            if currentMode == .month {
+            ZStack {
                 VStack(spacing: 2) {
                     Text(selectedDate.formatted(.dateTime.month(.wide)))
                         .font(Serenity.Typography.screenTitle())
                     Text(selectedDate.formatted(.dateTime.year()))
                         .font(Serenity.Typography.caption())
                 }
-                .transition(.opacity)
-                .id(selectedDate)
-                .animation(.easeInOut, value: selectedDate)
-            } else {
-                // Week view header:
-                let isToday = Calendar.current.isDate(selectedDate, inSameDayAs: Date())
-                let mainText = isToday ? "Today" : DateFormatter.weekdayFormatter.string(from: selectedDate)
-                let subText = DateFormatter.monthFormatter.string(from: selectedDate)
+                .opacity(monthOpacity)
+                
                 VStack(spacing: 2) {
+                    let isToday = Calendar.current.isDate(selectedDate, inSameDayAs: Date())
+                    let mainText = isToday ? "Today" : DateFormatter.weekdayFormatter.string(from: selectedDate)
                     Text(mainText)
                         .font(Serenity.Typography.screenTitle())
-                    Text(subText)
+                    Text(DateFormatter.monthFormatter.string(from: selectedDate))
                         .font(Serenity.Typography.caption())
                 }
-                .transition(.opacity)
-                .id(selectedDate)
-                .animation(.easeInOut, value: selectedDate)
+                .opacity(weekOpacity)
             }
+            .id(selectedDate)
+            .animation(.easeInOut, value: selectedDate)
 
             Spacer()
 
-            // Right Arrow: Navigates to the next month or week.
-            Button {
-                withAnimation {
-                    if currentMode == .month {
-                        selectedDate = selectedDate.nextMonth()
-                    } else {
-                        selectedDate = selectedDate.nextWeek()
-                    }
-                }
-            } label: {
-                Image(systemName: "chevron.right")
-                    .foregroundColor(Serenity.Colors.primary)
-                    .font(.title3)
-            }
-            .frame(width: Serenity.Layout.minimumTapTarget)
-
-            // Add Event Button.
             Button(action: onAddEvent) {
-                Image(systemName: "plus.circle.fill")
+                Image(systemName: "plus")
                     .foregroundColor(Serenity.Colors.primary)
-                    .font(.title2)
+                    .font(Serenity.Typography.screenIcon())
             }
             .padding(.leading, Serenity.Layout.standardPadding)
         }
@@ -247,9 +229,19 @@ extension CalendarPart {
         .padding(.vertical, 4)
         .padding(.horizontal, 10)
     }
+
+    /// When in week view, disallow navigating to weeks earlier than the week containing today.
+    private var canNavigateToPreviousWeek: Bool {
+        if currentMode == .week {
+            let currentWeekStart = Date().startOfWeek()
+            let selectedWeekStart = selectedDate.startOfWeek()
+            return selectedWeekStart > currentWeekStart
+        }
+        return true
+    }
 }
 
-// MARK: - Supporting Types and Extensions
+// MARK: - Supporting Types
 private enum CalendarViewMode {
     case month, week
 }

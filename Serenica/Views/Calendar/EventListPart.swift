@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Main List View
 
 /// Displays a list of event occurrences for the given date without a header grouping.
+/// Overdue tasks are grouped at the top in a collapsible section.
 /// Each row shows a square checkbox on the left, the primary title, and a subheading that only displays the timespan.
 struct EventListPart: View {
     @ObservedObject var eventService: EventService
@@ -21,33 +22,61 @@ struct EventListPart: View {
     @State private var eventToDelete: EventOccurrence? = nil
     @State private var showingDeletionConfirmation: Bool = false
     
+    // State to track whether the overdue section is expanded.
+    @State private var isOverdueSectionExpanded = true
+    
     var body: some View {
         ZStack {
             List {
+                // If there are no events at all, show "No tasks".
                 if filteredOccurrences.isEmpty {
                     Text("No tasks")
                         .font(Serenity.Typography.bodyText())
                         .foregroundColor(Serenity.Colors.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
-                        // Hide the separator for this empty state row.
                         .listRowSeparator(.hidden)
                 } else {
-                    ForEach(filteredOccurrences) { occurrence in
+                    // Overdue section (only if there's at least one overdue event).
+                    if !overdueOccurrences.isEmpty {
+                        // Using a DisclosureGroup to show/hide overdue items.
+                        DisclosureGroup(
+                            "Overdue: \(overdueOccurrences.count)",
+                            isExpanded: $isOverdueSectionExpanded
+                        ) {
+                            ForEach(overdueOccurrences) { occurrence in
+                                EventOccurrenceRowView(
+                                    occurrence: occurrence,
+                                    onToggle: { startPendingToggle(for: occurrence.event) },
+                                    onTap: { onSelectEvent(occurrence) },
+                                    pendingToggleCompleteEvent: pendingToggleCompleteEvent,
+                                    selectedDate: selectedDate
+                                )
+                                .listRowSeparator(.hidden)
+                            }
+                            .onDelete { indexSet in
+                                if let index = indexSet.first {
+                                    eventToDelete = overdueOccurrences[index]
+                                    showingDeletionConfirmation = true
+                                }
+                            }
+                        }
+                        .listRowSeparator(.hidden)
+                    }
+                    
+                    // Now show all non‑overdue events
+                    ForEach(nonOverdueOccurrences) { occurrence in
                         EventOccurrenceRowView(
                             occurrence: occurrence,
-                            // Instead of immediately toggling, start the pending toggle action.
                             onToggle: { startPendingToggle(for: occurrence.event) },
                             onTap: { onSelectEvent(occurrence) },
                             pendingToggleCompleteEvent: pendingToggleCompleteEvent,
                             selectedDate: selectedDate
                         )
-                        // Remove the divider/separator between rows.
                         .listRowSeparator(.hidden)
                     }
-                    // Instead of deleting immediately, trigger the confirmation dialog.
                     .onDelete { indexSet in
                         if let index = indexSet.first {
-                            eventToDelete = filteredOccurrences[index]
+                            eventToDelete = nonOverdueOccurrences[index]
                             showingDeletionConfirmation = true
                         }
                     }
@@ -122,12 +151,27 @@ struct EventListPart: View {
     }
 }
 
-// MARK: - Filtering Helper
+// MARK: - Filtering Helpers
 
 extension EventListPart {
     /// Returns all event occurrences (both from non‑recurring and recurring events) that occur on the selected date.
     private var filteredOccurrences: [EventOccurrence] {
         eventService.occurrences(on: selectedDate)
+    }
+    
+    /// Overdue occurrences are those whose event is overdue and whose
+    /// occurrenceStart matches the event's start date.
+    private var overdueOccurrences: [EventOccurrence] {
+        filteredOccurrences.filter {
+            $0.event.isOverdue && $0.occurrenceStart == $0.event.startDate
+        }
+    }
+    
+    /// Non-overdue occurrences are all the others.
+    private var nonOverdueOccurrences: [EventOccurrence] {
+        filteredOccurrences.filter {
+            !($0.event.isOverdue && $0.occurrenceStart == $0.event.startDate)
+        }
     }
 }
 
@@ -152,7 +196,10 @@ private struct EventOccurrenceRowView: View {
             
             // MARK: Checkbox
             Button(action: onToggle) {
-                CheckboxView(isChecked: occurrence.event.isCompleted || occurrence.event.id == pendingToggleCompleteEvent?.id)
+                CheckboxView(
+                    isChecked: occurrence.event.isCompleted
+                    || occurrence.event.id == pendingToggleCompleteEvent?.id
+                )
             }
             .buttonStyle(.plain)
             .frame(width: Serenity.Layout.minimumTapTarget, height: Serenity.Layout.minimumTapTarget)
@@ -166,15 +213,22 @@ private struct EventOccurrenceRowView: View {
                     Text(occurrence.event.title)
                         .font(Serenity.Typography.bodyText())
                         .foregroundColor(Serenity.Colors.textPrimary)
-                        .strikethrough(occurrence.event.isCompleted || occurrence.event.id == pendingToggleCompleteEvent?.id)
+                        .strikethrough(
+                            occurrence.event.isCompleted
+                            || occurrence.event.id == pendingToggleCompleteEvent?.id
+                        )
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                     
                     // Secondary text: display the occurrence's timespan.
                     HStack(spacing: 2) {
-                        Text(Calendar.current.isDate(occurrence.occurrenceStart, inSameDayAs: selectedDate) ? occurrence.occurrenceStart.formatted(date: .omitted, time: .shortened) : "00:00")
+                        Text(Calendar.current.isDate(occurrence.occurrenceStart, inSameDayAs: selectedDate)
+                             ? occurrence.occurrenceStart.formatted(date: .omitted, time: .shortened)
+                             : "00:00")
                         Text(" - ")
-                        Text(Calendar.current.isDate(occurrence.occurrenceEnd, inSameDayAs: selectedDate) ? occurrence.occurrenceEnd.formatted(date: .omitted, time: .shortened) : "00:00")
+                        Text(Calendar.current.isDate(occurrence.occurrenceEnd, inSameDayAs: selectedDate)
+                             ? occurrence.occurrenceEnd.formatted(date: .omitted, time: .shortened)
+                             : "23:59")
                         if occurrence.event.notificationId != nil {
                             Image(systemName: "bell.badge")
                         }
@@ -199,6 +253,7 @@ extension EventListPart {
     }
 }
 
+/*
 // MARK: - Previews
 
 #Preview {
@@ -226,4 +281,4 @@ extension EventListPart {
         selectedDate: Date()
     ) { _ in }
     .withPreviewDependencies()
-}
+} */

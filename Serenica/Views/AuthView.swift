@@ -79,9 +79,11 @@ struct AuthView: View {
     }
 }
 
+/*
 #Preview {
     NavigationView {
         AuthView().withPreviewDependencies()
     }
 }
 
+*/

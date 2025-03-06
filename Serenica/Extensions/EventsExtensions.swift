@@ -70,6 +70,66 @@ extension Event {
                self.notificationId == other.notificationId &&
                self.notificationInterval == other.notificationInterval
     }
+    
+    /// Returns true if this event has an occurrence on the specified date
+    func hasOccurrence(on date: Date) -> Bool {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+        
+        // Handle recurring cases
+        guard let eventStart = startDate, let eventEnd = endDate else {
+            return false
+        }
+            
+        // Check recurrence end date
+        if let recurrenceEnd = recurrenceEndDate, date >= recurrenceEnd, recurrenceType != .none {
+            return false
+        }
+            
+        // Check excluded dates
+        if let excluded = recurrenceExcludedDates,
+            excluded.contains(where: { calendar.isDate($0, inSameDayAs: targetDay) }), recurrenceType != .none {
+            return false
+        }
+        
+        let startDay = calendar.startOfDay(for: eventStart)
+        
+        switch recurrenceType {
+        case .daily:
+            let daysDiff = calendar.dateComponents([.day], from: startDay, to: targetDay).day ?? -1
+            return daysDiff >= 0 && daysDiff % recurrenceInterval == 0
+            
+        case .workingDays:
+            if calendar.isDateInWeekend(targetDay) { return false }
+            return targetDay >= startDay
+            
+        case .weekly:
+            let weekdayStart = calendar.component(.weekday, from: eventStart)
+            let weekdayTarget = calendar.component(.weekday, from: targetDay)
+            if weekdayStart != weekdayTarget { return false }
+            let weeksDiff = calendar.dateComponents([.weekOfYear], from: startDay, to: targetDay).weekOfYear ?? -1
+            return weeksDiff >= 0 && weeksDiff % recurrenceInterval == 0
+                
+        case .monthly:
+            let monthsDiff = calendar.dateComponents([.month], from: startDay, to: targetDay).month ?? -1
+            if monthsDiff < 0 || monthsDiff % recurrenceInterval != 0 { return false }
+            if let candidate = calendar.date(byAdding: .month, value: monthsDiff, to: eventStart) {
+                return calendar.isDate(candidate, inSameDayAs: targetDay)
+            }
+            return false
+                
+        case .yearly:
+            let yearsDiff = calendar.dateComponents([.year], from: startDay, to: targetDay).year ?? -1
+            if yearsDiff < 0 || yearsDiff % recurrenceInterval != 0 { return false }
+            if let candidate = calendar.date(byAdding: .year, value: yearsDiff, to: eventStart) {
+                return calendar.isDate(candidate, inSameDayAs: targetDay)
+            }
+            return false
+                
+        case .none:
+            return date >= eventStart && date <= eventEnd
+        }
+    }
 }
 
 
@@ -260,12 +320,14 @@ extension EventService {
     func nextOccurrence(for event: Event, after date: Date) -> (startDate: Date, endDate: Date)? {
         // Ensure required properties exist.
         guard let eventStart = event.startDate, let eventEnd = event.endDate else { return nil }
+        print("I'm here")
         let duration = eventEnd.timeIntervalSince(eventStart)
-        guard duration > 0 else { return nil }
+        print("Duration: \(duration)")
         
         let calendar = Calendar.current
         // Normalize and round up provided data to fulfill the siffecient logic of strict after for given date
         let targetDate = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date)) ?? date
+        print("Target date: \(targetDate)")
         
         // If there is no recurrence, there is no "next" occurrence.
         if event.recurrenceType == .none {
@@ -278,10 +340,14 @@ extension EventService {
         switch event.recurrenceType {
         case .daily:
             let intervalSeconds = 86400.0 * Double(event.recurrenceInterval)
+            print("Interval: \(intervalSeconds)")
             // Use floor + 1 so that even if date exactly equals an occurrence we advance.
             let secondsSinceStart = targetDate.timeIntervalSince(eventStart)
+            print("Seconds since start: \(secondsSinceStart)")
             let intervalsPassed = floor(secondsSinceStart / intervalSeconds) + 1
+            print("Intervals passed: \(intervalsPassed)")
             candidate = eventStart.addingTimeInterval(intervalsPassed * intervalSeconds)
+            print("Candidate: \(candidate)")
             
         case .weekly:
             let intervalSeconds = 7 * 86400.0 * Double(event.recurrenceInterval)
@@ -319,7 +385,9 @@ extension EventService {
         
         // Extra check: If candidate is not strictly after date (should not happen with the above math), advance it.
         if candidate <= targetDate {
+            print("Advance once more.")
             candidate = advanceCandidate(from: candidate, for: event, using: calendar)
+            print("Candidate: \(candidate)")
         }
         
         // Skip excluded dates.
@@ -327,6 +395,7 @@ extension EventService {
         var iterations = 0
         while let excludedDates = event.recurrenceExcludedDates,
               excludedDates.contains(where: { calendar.isDate($0, inSameDayAs: candidate) }) {
+            print("Have to iterate excluded dates")
             iterations += 1
             if iterations > maxIterations { return nil }
             candidate = advanceCandidate(from: candidate, for: event, using: calendar)
@@ -334,9 +403,11 @@ extension EventService {
                 candidate = advanceCandidate(from: candidate, for: event, using: calendar)
             }
         }
+        print("Candidate: \(candidate)\n")
         
         // Ensure the candidate falls before the recurrenceEndDate (if one exists).
         if let recurrenceEnd = event.recurrenceEndDate, candidate >= recurrenceEnd {
+            print("Candidate falls after recurrenceEndDate, returning nil.")
             return nil
         }
         

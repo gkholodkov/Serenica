@@ -57,7 +57,7 @@ class NotificationManager {
         
         let content = UNMutableNotificationContent()
         content.title = event.title
-        content.body = "Hey, just a heads-up—your event is about to start! Time to wrap up your current task and get ready!"
+        content.body = !event.isOverdue ? "Hey, just a heads-up—your event is about to start! Time to wrap up your current task and get ready!" : "Hey, apparently you've forgotten about your event yesterday! Don't worry, we've got you covered :)";
         content.sound = .default
         
         // Create a trigger to fire the notification at the event's start date.

@@ -210,9 +210,10 @@ struct ChatView: View {
             .padding(.vertical, Serenity.Layout.smallPadding)
     }
 }
-
+/*
 // MARK: - Preview
 
 #Preview {
     ChatView().withPreviewDependencies()
 }
+*/

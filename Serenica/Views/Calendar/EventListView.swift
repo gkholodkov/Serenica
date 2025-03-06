@@ -44,6 +44,7 @@ struct EventListView: View {
     }
 }
 
+/*
 // MARK: - Preview
 #Preview {
     EventListView(
@@ -76,3 +77,4 @@ struct EventListView: View {
     )
     .withPreviewDependencies()
 }
+*/

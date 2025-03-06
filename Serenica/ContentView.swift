@@ -19,7 +19,9 @@ struct ContentView: View {
     }
 }
 
+/*
 #Preview {
     ContentView(context: CoreDataManager.shared.viewContext)
         .withPreviewDependencies()
 }
+*/

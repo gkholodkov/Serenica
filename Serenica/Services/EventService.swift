@@ -52,6 +52,77 @@ class EventService: ObservableObject {
         self.init(context: CoreDataManager.shared.viewContext)
     }
     
+    // MARK: - Getters for events fields
+    func getEvents(byDate date: Date? = nil,
+                   byTitle titleContains: String? = nil) -> [Event] {
+        return events.filter { event in
+            // Date filtering
+            let dateMatches: Bool = date == nil || event.hasOccurrence(on: date!)
+
+            // Title filtering
+            let titleMatches: Bool
+            if let searchTitle = titleContains?.lowercased() {
+                titleMatches = event.title.lowercased().contains(searchTitle)
+            } else {
+                titleMatches = true // No title filter applied
+            }
+            
+            // Return true only if both conditions are satisfied
+            return dateMatches && titleMatches
+        }
+    }
+    
+    func getRecurringEvents(byDate date: Date? = nil,
+                            byTitle titleContains: String? = nil) -> [Event] {
+        return recurringEvents.filter { event in
+            let dateMatches: Bool = date == nil || event.hasOccurrence(on: date!)
+            
+            // Title filtering
+            let titleMatches: Bool
+            if let searchTitle = titleContains?.lowercased() {
+                titleMatches = event.title.lowercased().contains(searchTitle)
+            } else {
+                titleMatches = true // No title filter applied
+            }
+            
+            // Return true only if both conditions are satisfied
+            return dateMatches && titleMatches
+        }
+    }
+    
+    func getCompletedEvents(byDate date: Date? = nil,
+                            byTitle titleContains: String? = nil) -> [Event] {
+        return completedEvents.filter { event in
+            let dateMatches: Bool = date == nil || event.hasOccurrence(on: date!)
+            
+            // Title filtering
+            let titleMatches: Bool
+            if let searchTitle = titleContains?.lowercased() {
+                titleMatches = event.title.lowercased().contains(searchTitle)
+            } else {
+                titleMatches = true // No title filter applied
+            }
+            
+            // Return true only if both conditions are satisfied
+            return dateMatches && titleMatches
+        }
+    }
+    
+    func getUndatedEvents(byTitle titleContains: String? = nil) -> [Event] {
+        return undatedEvents.filter { event in
+            // Title filtering
+            let titleMatches: Bool
+            if let searchTitle = titleContains?.lowercased() {
+                titleMatches = event.title.lowercased().contains(searchTitle)
+            } else {
+                titleMatches = true // No title filter applied
+            }
+            
+            // Return true only if both conditions are satisfied
+            return titleMatches
+        }
+    }
+    
     // MARK: - Dependency Updates
     
     /// Call this if the view’s context changes.
@@ -234,6 +305,7 @@ class EventService: ObservableObject {
         occurrenceEvent.isOverdue = updatedOccurrence.isOverdue && !updatedOccurrence.isCompleted && updatedOccurrence.endDate ?? Date() < Date()
         // CASE 1: The target date is the first occurrence.
         if let eventStart = event.startDate, calendar.isDate(eventStart, inSameDayAs: targetDay) {
+            print("Update Single Occurrence: First Occurrence")
             // Add the updated occurrence as a standalone event.
             addEvent(occurrenceEvent)
             // Advance the recurring event to the next occurrence.
@@ -243,6 +315,7 @@ class EventService: ObservableObject {
                 
         // CASE 2: No further recurrences exist after targetDay (i.e. last occurrence).
         else if nextOccurrence(for: event, after: targetDay) == nil {
+            print("Update Single Occurrence: Last Occurrence")
             // Add the updated occurrence as a standalone event.
             addEvent(occurrenceEvent)
             
@@ -262,6 +335,7 @@ class EventService: ObservableObject {
         
         // CASE 3: Intermediate occurrence.
         else {
+            print("Update Single Occurrence: Intermediate Occurrence")
             // Add the updated occurrence as a standalone event.
             addEvent(occurrenceEvent)
             

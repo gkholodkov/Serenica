@@ -37,6 +37,10 @@ enum Serenity {
     }
     
     enum Typography {
+        /// For nav-bar icons like "AddEvent"
+        static func screenIcon() -> Font {
+            .system(.title, design: .default, weight: .regular)
+        }
         /// For nav-bar titles like “Unassigned,” “Today,” “January,” “Completed”
         static func screenTitle() -> Font {
             .system(.title2, design: .default, weight: .bold)  // ~22pt

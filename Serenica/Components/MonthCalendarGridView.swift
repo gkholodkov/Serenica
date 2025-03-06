@@ -176,6 +176,7 @@ private struct DayCellView: View {
     ) { _ in }
 }
 
+/*
 #Preview("With Events") {
     let today = Date()
     let eventService = EventService()
@@ -192,4 +193,4 @@ private struct DayCellView: View {
         selectedDate: .constant(today),
         eventService: eventService
     ) { _ in }
-}
+}*/

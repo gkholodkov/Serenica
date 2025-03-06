@@ -29,7 +29,7 @@ struct UnassignedEventsView: View {
                     showingEventSheet = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.title)
+                        .font(Serenity.Typography.screenIcon())
                         .foregroundColor(Serenity.Colors.primary)
                 }
                 .padding(.horizontal, 10)
@@ -124,6 +124,7 @@ private struct UnassignedEventRowView: View {
     }
 }
 
+/*
 // MARK: - Previews
 
 #Preview {
@@ -168,3 +169,4 @@ private struct UnassignedEventRowView: View {
     )
     .withPreviewDependencies()
 }
+*/

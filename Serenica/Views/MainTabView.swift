@@ -50,7 +50,9 @@ struct MainTabView: View {
     }
 }
 
+/*
 #Preview {
     MainTabView()
         .withPreviewDependencies()
 }
+*/
