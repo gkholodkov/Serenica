@@ -1,24 +1,17 @@
-//
-//  MessageRepositoryProtocol.swift
-//  Serenica
-//
-//  Created by Checkito12 on 01.03.25.
-//
-
-
 import Foundation
 import CoreData
 
 class MessageRepository: MessageRepositoryProtocol {
     private var context: NSManagedObjectContext
     private var authService: AuthService
-    
+
     init(context: NSManagedObjectContext? = nil) {
         self.context = context ?? CoreDataManager.shared.container.viewContext
         self.authService = AuthService(context: self.context)
     }
     
-    func fetchMessages(forUser userId: UUID) -> [Message] {
+    func fetchMessages() -> [Message] {
+        guard let userId = authService.currentUser?.id else { return [] }
         let request = NSFetchRequest<MessageEntity>(entityName: "MessageEntity")
         request.sortDescriptors = [NSSortDescriptor(keyPath: \MessageEntity.timestamp, ascending: true)]
         request.predicate = NSPredicate(format: "user.id == %@", userId as CVarArg)
@@ -39,17 +32,17 @@ class MessageRepository: MessageRepositoryProtocol {
         }
     }
     
-    func addMessage(_ message: Message, forUser userId: UUID) {
+    func addMessage(_ message: Message) {
+        guard let userId = authService.currentUser?.id else { return }
         let entity = MessageEntity(context: context)
         entity.id = message.id
         entity.content = message.content
         entity.isFromUser = message.isFromUser
         entity.timestamp = message.timestamp
         
-        // Associate with UserEntity
+        // Associate with UserEntity based on current user.
         let userRequest = NSFetchRequest<UserEntity>(entityName: "UserEntity")
         userRequest.predicate = NSPredicate(format: "id == %@", userId as CVarArg)
-        
         if let userEntity = (try? context.fetch(userRequest))?.first {
             entity.user = userEntity
         }
@@ -66,8 +59,7 @@ class MessageRepository: MessageRepositoryProtocol {
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         
         do {
-            let entities = try context.fetch(request)
-            if let entity = entities.first {
+            if let entity = try context.fetch(request).first {
                 context.delete(entity)
                 try context.save()
             }
@@ -76,11 +68,12 @@ class MessageRepository: MessageRepositoryProtocol {
         }
     }
     
-    func clearAllMessages(forUser userId: UUID) {
+    func clearAllMessages() {
+        guard let userId = authService.currentUser?.id else { return }
         let fetchRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest(entityName: "MessageEntity")
         fetchRequest.predicate = NSPredicate(format: "user.id == %@", userId as CVarArg)
-        
         let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
+        
         do {
             try context.execute(deleteRequest)
             try context.save()
@@ -89,12 +82,12 @@ class MessageRepository: MessageRepositoryProtocol {
         }
     }
     
+    // Optionally update AuthService and context if needed:
     func updateAuthService(_ newAuthService: AuthService) {
         self.authService = newAuthService
     }
     
     func updateContext(_ newContext: NSManagedObjectContext) {
-        // Simply update the internal context.
         self.context = newContext
     }
 }

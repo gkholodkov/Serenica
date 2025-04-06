@@ -20,19 +20,4 @@ extension AuthService {
         return service
     }
 }
-
-extension MessageStore {
-    static func previewWithMessages() -> MessageStore {
-        let store = MessageStore()
-        store.previewAddMessage(Message(
-            content: "Hello! How can I help you today?",
-            isFromUser: false
-        ))
-        store.previewAddMessage(Message(
-            content: "I need help with SwiftUI",
-            isFromUser: true
-        ))
-        return store
-    }
-}
 #endif 

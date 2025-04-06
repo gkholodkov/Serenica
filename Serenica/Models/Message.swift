@@ -32,7 +32,6 @@ struct Message: Identifiable, Equatable {
         }
     }
     
-    // Add Equatable conformance
     static func == (lhs: Message, rhs: Message) -> Bool {
         lhs.id == rhs.id &&
         lhs.content == rhs.content &&
@@ -40,3 +39,4 @@ struct Message: Identifiable, Equatable {
         lhs.timestamp == rhs.timestamp
     }
 }
+

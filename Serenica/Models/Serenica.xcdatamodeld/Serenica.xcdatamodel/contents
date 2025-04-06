@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23507" systemVersion="24D70" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788" systemVersion="24D81" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+    <entity name="EmotionEntity" representedClassName="EmotionEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="arousal" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="dominance" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="label" optional="YES" attributeType="String"/>
+        <attribute name="pleasure" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="memory" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="MemoryEntity" inverseName="emotionalState" inverseEntity="MemoryEntity"/>
+    </entity>
     <entity name="EventEntity" representedClassName="EventEntity" syncable="YES" codeGenerationType="class">
         <attribute name="endDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
@@ -16,6 +24,17 @@
         <attribute name="title" optional="YES" attributeType="String"/>
         <relationship name="user" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="UserEntity" inverseName="events" inverseEntity="UserEntity"/>
     </entity>
+    <entity name="FactEntity" representedClassName="FactEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="key" attributeType="String"/>
+        <attribute name="value" attributeType="String"/>
+        <relationship name="memory" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="MemoryEntity" inverseName="knowledge" inverseEntity="MemoryEntity"/>
+    </entity>
+    <entity name="MemoryEntity" representedClassName="MemoryEntity" syncable="YES" codeGenerationType="class">
+        <relationship name="emotionalState" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="EmotionEntity" inverseName="memory" inverseEntity="EmotionEntity"/>
+        <relationship name="knowledge" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="FactEntity" inverseName="memory" inverseEntity="FactEntity"/>
+        <relationship name="personality" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="PersonalityProfileEntity" inverseName="memory" inverseEntity="PersonalityProfileEntity"/>
+        <relationship name="user" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="UserEntity" inverseName="memory" inverseEntity="UserEntity"/>
+    </entity>
     <entity name="MessageEntity" representedClassName="MessageEntity" syncable="YES" codeGenerationType="class">
         <attribute name="content" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
@@ -23,12 +42,28 @@
         <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <relationship name="user" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="UserEntity" inverseName="messages" inverseEntity="UserEntity"/>
     </entity>
+    <entity name="PersonalityProfileEntity" representedClassName="PersonalityProfileEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="bigFive_agreeableness" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="bigFive_conscientiousness" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="bigFive_extraversion" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="bigFive_neuroticism" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="bigFive_openness" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="hexaco_agreeableness" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="hexaco_conscientiousness" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="hexaco_emotionality" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="hexaco_extraversion" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="hexaco_honestyHumility" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="hexaco_opennessToExperience" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="mbti" optional="YES" attributeType="String"/>
+        <relationship name="memory" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="MemoryEntity" inverseName="personality" inverseEntity="MemoryEntity"/>
+    </entity>
     <entity name="UserEntity" representedClassName="UserEntity" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="hashedPassword" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="username" optional="YES" attributeType="String"/>
         <relationship name="events" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="EventEntity" inverseName="user" inverseEntity="EventEntity"/>
+        <relationship name="memory" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="MemoryEntity" inverseName="user" inverseEntity="MemoryEntity"/>
         <relationship name="messages" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="MessageEntity" inverseName="user" inverseEntity="MessageEntity"/>
     </entity>
 </model>

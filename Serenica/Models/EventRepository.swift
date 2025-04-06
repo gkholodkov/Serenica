@@ -1,15 +1,7 @@
-//
-//  EventRepository.swift
-//  Serenica
-//
-//  Responsible for raw data access (CRUD) using Core Data.
-//  This component isolates all Core Data fetch, add, update, and delete operations.
-//
-
 import CoreData
 import SwiftUI
 
-class EventRepository {
+class EventRepository : EventRepositoryProtocol {
     private var context: NSManagedObjectContext
     private var authService: AuthService
 

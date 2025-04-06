@@ -3,9 +3,7 @@ import SwiftUI
 struct ToDoView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject private var authService: AuthService
-    
-    // Main EventService
-    @StateObject private var eventService = EventService()
+    @EnvironmentObject private var eventService: EventService
     
     // UI State
     @State private var selectedTab = 1

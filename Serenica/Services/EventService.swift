@@ -1,13 +1,3 @@
-//
-//  EventStore.swift
-//  Serenica
-//
-//  A high-level facade that orchestrates event-related operations.
-//  It is built on top of EventRepository, EventRecurrenceManager,
-//  OverdueManager, and EventNotificationService.
-//  Note: This class is now named “EventStore” to match your UI’s expectations.
-//
-
 import Foundation
 import CoreData
 import SwiftUI
@@ -32,7 +22,6 @@ class EventService: ObservableObject {
     
     /// Designated initializer.
     init(context: NSManagedObjectContext,
-         repository: EventRepository = EventRepository(context: CoreDataManager.shared.viewContext),
          recurrenceManager: EventRecurrenceManager = EventRecurrenceManager(),
          notificationService: EventNotificationService = EventNotificationService(),
          overdueManager: OverdueManager = OverdueManager()) {
@@ -55,7 +44,7 @@ class EventService: ObservableObject {
     // MARK: - Getters for events fields
     func getEvents(byDate date: Date? = nil,
                    byTitle titleContains: String? = nil) -> [Event] {
-        return events.filter { event in
+        return (events+recurringEvents+undatedEvents+completedEvents).filter { event in
             // Date filtering
             let dateMatches: Bool = date == nil || event.hasOccurrence(on: date!)
 
@@ -72,55 +61,8 @@ class EventService: ObservableObject {
         }
     }
     
-    func getRecurringEvents(byDate date: Date? = nil,
-                            byTitle titleContains: String? = nil) -> [Event] {
-        return recurringEvents.filter { event in
-            let dateMatches: Bool = date == nil || event.hasOccurrence(on: date!)
-            
-            // Title filtering
-            let titleMatches: Bool
-            if let searchTitle = titleContains?.lowercased() {
-                titleMatches = event.title.lowercased().contains(searchTitle)
-            } else {
-                titleMatches = true // No title filter applied
-            }
-            
-            // Return true only if both conditions are satisfied
-            return dateMatches && titleMatches
-        }
-    }
-    
-    func getCompletedEvents(byDate date: Date? = nil,
-                            byTitle titleContains: String? = nil) -> [Event] {
-        return completedEvents.filter { event in
-            let dateMatches: Bool = date == nil || event.hasOccurrence(on: date!)
-            
-            // Title filtering
-            let titleMatches: Bool
-            if let searchTitle = titleContains?.lowercased() {
-                titleMatches = event.title.lowercased().contains(searchTitle)
-            } else {
-                titleMatches = true // No title filter applied
-            }
-            
-            // Return true only if both conditions are satisfied
-            return dateMatches && titleMatches
-        }
-    }
-    
-    func getUndatedEvents(byTitle titleContains: String? = nil) -> [Event] {
-        return undatedEvents.filter { event in
-            // Title filtering
-            let titleMatches: Bool
-            if let searchTitle = titleContains?.lowercased() {
-                titleMatches = event.title.lowercased().contains(searchTitle)
-            } else {
-                titleMatches = true // No title filter applied
-            }
-            
-            // Return true only if both conditions are satisfied
-            return titleMatches
-        }
+    func getEvent(byId id: UUID) -> Event? {
+        return (events+recurringEvents+undatedEvents+completedEvents).first { $0.id == id }
     }
     
     // MARK: - Dependency Updates

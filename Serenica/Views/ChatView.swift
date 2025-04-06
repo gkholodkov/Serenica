@@ -1,24 +1,11 @@
 import SwiftUI
 import CoreData
 
-/// ChatView
-///
-/// Key points based on your clarifications:
-/// 1. We *do* persist messages using CoreData, but the code below just shows the in-memory aspect.
-///    (We could add CoreData save logic in `MessageStore` or wherever appropriate.)
-/// 2. messageStore is in-memory now and we only need to send messages (no extra logging).
-/// 3. voiceManager has properties: isRecording, transcribedText, isPermissionGranted, isTranscriptionFinished,
-///    plus startRecording(), stopRecording(), and speakText().
-/// 4. We always send the voice-transcribed text *immediately* once recording stops (2nd click).
-/// 5. The TextField is disabled during recording.
-/// 6. We only speak messages aloud when the user taps a message bubble; no automatic TTS for now.
-/// 7. Starting to record clears whatever was in the text field.
-
 struct ChatView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject private var authService: AuthService
-    @StateObject private var messageStore: MessageStore
-    @StateObject private var voiceManager: AnyVoiceManager
+    @EnvironmentObject private var messageService: MessageService
+    @StateObject private var voiceManager: AnyVoiceManager = AnyVoiceManager(VoiceManager())
     
     @State private var messageText = ""
     @State private var isRecording = false
@@ -26,11 +13,6 @@ struct ChatView: View {
     @FocusState private var isFocused: Bool
     @State private var isProcessing = false
     
-    init() {
-        let voiceManager = VoiceManager()
-        _voiceManager = StateObject(wrappedValue: AnyVoiceManager(voiceManager))
-        _messageStore = StateObject(wrappedValue: MessageStore())
-    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -56,7 +38,7 @@ struct ChatView: View {
             Text("Unable to start voice recording. Please check permissions.")
         }
         .onAppear {
-            messageStore.updateAuthService(authService)
+            messageService.updateAuthService(authService)
         }
     }
     
@@ -75,7 +57,7 @@ struct ChatView: View {
                 }
                 .padding(.vertical, Serenity.Layout.standardPadding)
             }
-            .onChange(of: messageStore.messages.count) { _, _ in
+            .onChange(of: messageService.messages.count) { _, _ in
                 scrollToLastMessage(proxy: proxy)
             }
         }
@@ -119,7 +101,7 @@ struct ChatView: View {
     }
     
     private func scrollToLastMessage(proxy: ScrollViewProxy) {
-        if let lastMessage = messageStore.messages.last {
+        if let lastMessage = messageService.messages.last {
             withAnimation {
                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
             }
@@ -153,12 +135,7 @@ struct ChatView: View {
         messageText = ""
         
         Task {
-            do {
-                try await messageStore.sendMessage(trimmedText)
-            } catch {
-                // Handle error if needed
-                print("Error sending message: \(error.localizedDescription)")
-            }
+            await messageService.sendMessage(trimmedText)
             await MainActor.run {
                 isProcessing = false
             }
@@ -168,7 +145,7 @@ struct ChatView: View {
     // Update the groupedMessages computed property
     private var groupedMessages: [(Date, [Message])] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: messageStore.messages) { message in
+        let grouped = Dictionary(grouping: messageService.messages) { message in
             calendar.startOfDay(for: message.timestamp)
         }
         // Change sorting order: oldest dates first (ascending)

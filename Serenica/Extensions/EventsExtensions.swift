@@ -33,6 +33,23 @@ extension RecurrenceType: CaseIterable, Identifiable {
         }
     }
     
+    var name: String {
+        switch self {
+        case .none:
+            return "none"
+        case .daily:
+            return "daily"
+        case .workingDays:
+            return "workingDays"
+        case .weekly:
+            return "weekly"
+        case .monthly:
+            return "monthly"
+        case .yearly:
+            return "yearly"
+        }
+    }
+    
     var unitName: String {
         switch self {
         case .none:
@@ -50,12 +67,22 @@ extension RecurrenceType: CaseIterable, Identifiable {
         }
     }
     
+    public static func fromString(_ input: String) -> RecurrenceType? {
+        return RecurrenceType.allCases.first { $0.name == input }
+    }
+    
     public static var allCases: [RecurrenceType] {
         return [.none, .daily, .workingDays, .weekly, .monthly, .yearly]
     }
 }
 
 extension Event {
+    ///  Returns the summary of the event
+    var summary: String {
+        let dateStr = startDate?.formatted(.dateTime) ?? "Undated"
+        return "\(title) - \(dateStr) - recurrence: \(recurrenceType.displayName)"
+    }
+    
     /// Compares this Event with another Event field by field.
     /// - Parameter other: The Event to compare with.
     /// - Returns: `true` if all fields are equal, `false` otherwise.
@@ -130,6 +157,8 @@ extension Event {
             return date >= eventStart && date <= eventEnd
         }
     }
+    
+    
 }
 
 
