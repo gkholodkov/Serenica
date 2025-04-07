@@ -1,12 +1,12 @@
 import Foundation
 
-class DeepSeekAIService: AIServiceProtocol {
+class MistralAIService: AIServiceProtocol {
     private let apiKey: String
     private let baseURL: String
     private let httpClient: HttpClient
-
+    
     public init(apiKey: String = "test-key",
-                baseURL: String = "https://api.deepseek.com/v1/chat/completions",
+                baseURL: String = "https://api.mistral.ai/v1/chat/completions",
                 retryCount: Int = 3,
                 retryDelay: TimeInterval = 2) {
         self.apiKey = apiKey
@@ -14,11 +14,7 @@ class DeepSeekAIService: AIServiceProtocol {
         self.httpClient = HttpClient(retryCount: retryCount, retryDelay: retryDelay)
     }
     
-    /// Gets the natural language response using retry logic.
-    func getNaturalLanguageResponse(_ message: String,
-                                    prefixMessage: ChatMessage? = nil,
-                                    shortTermMemory: [ChatMessage]? = nil,
-                                    longTermMemory: ChatMessage? = nil) async throws -> [Choice] {
+    func getNaturalLanguageResponse(_ message: String, prefixMessage: ChatMessage?, shortTermMemory: [ChatMessage]?, longTermMemory: ChatMessage?) async throws -> [Choice] {
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -36,7 +32,7 @@ class DeepSeekAIService: AIServiceProtocol {
         }
         
         let chatRequest = ChatRequest(
-            model: "deepseek-chat",
+            model: "mistral-large-latest",
             messages: allMessages,
             temperature: 0.7,
             tools: [],
@@ -50,9 +46,7 @@ class DeepSeekAIService: AIServiceProtocol {
         return response.choices
     }
     
-    /// Gets tool calls response using retry logic.
-    func getToolCallsResponse(_ message: String,
-                              shortTermMemory: [ChatMessage]? = nil) async throws -> [ToolCall] {
+    func getToolCallsResponse(_ message: String, shortTermMemory: [ChatMessage]?) async throws -> [ToolCall] {
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -63,7 +57,7 @@ class DeepSeekAIService: AIServiceProtocol {
         let allMessages = [currentDatePrompt] + recentChatMessages + [ChatMessage(role: .user, content: message)]
         
         let chatRequest = ChatRequest(
-            model: "deepseek-chat",
+            model: "mistral-large-latest",
             messages: allMessages,
             temperature: 0.0,
             tools: tools,
@@ -71,13 +65,14 @@ class DeepSeekAIService: AIServiceProtocol {
         )
         
         request.httpBody = try JSONEncoder().encode(chatRequest)
-        
+                
         let (data, _) = try await httpClient.performRequest(with: request)
+        print(String(data: data, encoding: .utf8) ?? "No data returned")
         let response = try JSONDecoder().decode(ChatResponse.self, from: data)
+        print(response)
         return response.choices.first?.message.tool_calls ?? []
     }
     
-    /// Gets emotion recognition response using retry logic.
     func getEmotionRecognitionResponse(_ message: String) async throws -> EmotionRecognitionResponse {
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
@@ -86,7 +81,7 @@ class DeepSeekAIService: AIServiceProtocol {
         
         let allMessages = [emotionRecognitionMessage, ChatMessage(role: .user, content: message)]
         let chatRequest = ChatRequest(
-            model: "deepseek-chat",
+            model: "mistral-large-latest",
             messages: allMessages,
             temperature: 0.0,
             tools: [],
@@ -105,4 +100,6 @@ class DeepSeekAIService: AIServiceProtocol {
             return EmotionRecognitionResponse(pleasure: 0, arousal: 0.5, dominance: 0.5, label: EmotionLabel.calm.rawValue)
         }
     }
+    
+    
 }

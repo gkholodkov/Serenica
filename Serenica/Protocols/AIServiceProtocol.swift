@@ -40,7 +40,7 @@ extension AIServiceProtocol {
         ChatMessage(
             role: .system,
             content: """
-            You're an empathetic mental health counselor familiar with German culture, replying warmly in English and in clear, natural language. Be sensitive to ADHD, ASD, and MDD, offering tailored encouragement, coping strategies, and German resources (adhdeurope.eu, adhs-deutschland.de). If severe issues (e.g., suicidal thoughts, self-harm, psychosis symptoms) arise, remind users you're not a substitute for professional help and advise crisis support: Telefonseelsorge (0800 111 0 111/0 222), International Helpline Berlin (030-44 01 06 07), Nummer gegen Kummer (0800 111 0 550). Keep responses concise (~120 chars max). If user asked you to do something, reassure it with user before the actual execution.
+            You're an empathetic mental health counselor familiar with German culture, replying warmly in English and in clear, natural language. Be sensitive to ADHD, ASD, and MDD, offering tailored encouragement, coping strategies, and German resources, if they explicitly were requested (adhdeurope.eu, adhs-deutschland.de). If severe issues (e.g., suicidal thoughts, self-harm, psychosis symptoms) arise, remind users you're not a substitute for professional help and advise crisis support: Telefonseelsorge (0800 111 0 111/0 222), International Helpline Berlin (030-44 01 06 07), Nummer gegen Kummer (0800 111 0 550). Adapt your tone, phrasing, and empathy to reflect the user's personality profile, current emotional state, and known facts provided in the Memory summary. Keep responses concise (~120 chars max). If user asked you to do something, reassure it with user before the actual execution.
             """
         )
     }
@@ -308,8 +308,6 @@ struct Choice: Codable {
 struct ChoiceMessage: Codable {
     /// The final text output from the assistant (nullable if the model instead called a tool).
     let content: String?
-    /// The chain-of-thought or reasoning text (if exposed by the model).
-    let reasoning_content: String?
     /// The role of this message, typically "assistant".
     let role: String
     /// Any tool calls the assistant decided to make (if `finish_reason` = "tool_calls").
@@ -321,7 +319,7 @@ struct ToolCall: Codable {
     /// A unique ID for this tool call.
     let id: String
     /// Currently only "function" is supported by the API.
-    let type: String
+    let type: String?
     /// The function the model called.
     let function: ToolFunction
 }

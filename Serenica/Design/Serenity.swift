@@ -27,8 +27,8 @@ enum Serenity {
         static let divider = Color(hex: "E5E5EA")
         
         /// Chat-specific colors, also toned down
-        static let messageBubbleUser = Color(UIColor.secondaryGreen)
-        static let messageBubbleBot = Color(UIColor.systemGray6)
+        static let messageBubbleUser = Color(hex: "#E0E0E0")
+        static let messageBubbleBot = Color(hex: "#F5F5F5")
         
         /// Calendar specific colors
         static let todayCellColor = Color(red: 241/255, green: 241/255, blue: 241/255)

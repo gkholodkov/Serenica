@@ -493,7 +493,6 @@ class EventService: ObservableObject {
 
     
     // MARK: - Data Refresh
-    
     func fetchEvents() {
         // Fetch non-recurring events.
         let nonRecurringEntities = repository.fetchNonRecurringEvents()

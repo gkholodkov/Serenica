@@ -23,6 +23,6 @@ actor EventContextManager {
         let summary = eventsCache.joined(separator: "\n")
         guard !summary.isEmpty else { return nil }
         
-        return "{\"summaries\": \"\(summary)\"}"
+        return "\(summary)"
     }
 }

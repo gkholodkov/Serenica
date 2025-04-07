@@ -20,9 +20,7 @@ struct MessageBubble: View {
                             Serenity.Colors.messageBubbleUser : 
                             Serenity.Colors.messageBubbleBot
                     )
-                    .foregroundColor(
-                        message.isFromUser ? .white : Serenity.Colors.textPrimary
-                    )
+                    .foregroundColor(Serenity.Colors.textPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: Serenity.Layout.messageBubbleRadius))
                 
                 Text(message.timeString)

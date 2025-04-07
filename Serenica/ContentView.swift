@@ -18,7 +18,7 @@ struct ContentView: View {
         
         // Build the AI agent for MessageService.
         let memoryService = AgentMemoryService(context: context)
-        let aiService = DeepSeekAIService()
+        let aiService = MistralAIService()
         let emotionRecognitionService = EmotionRecognitionService(llmService: aiService)
         let eventContextManager = EventContextManager()
 
@@ -52,9 +52,8 @@ struct ContentView: View {
     }
 }
 
-/*
+
 #Preview {
     ContentView(context: CoreDataManager.shared.viewContext)
         .withPreviewDependencies()
 }
-*/

@@ -2,6 +2,7 @@ import Foundation
 import CoreData
 import SwiftUI
 
+@MainActor
 class MessageService: ObservableObject {
     private let repository: MessageRepository
     private let aiAgent: AIEventAgent
