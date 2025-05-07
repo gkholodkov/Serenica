@@ -10,8 +10,8 @@ class AgentMemoryService {
     // Serial queue to synchronize access to in‑memory collections.
     private let memoryQueue = DispatchQueue(label: "com.myapp.agentMemoryQueue")
     
-    init(context: NSManagedObjectContext) {
-        self.memoryRepository = MemoryRepository(context: context)
+    init(context: NSManagedObjectContext, authService: AuthService? = nil) {
+        self.memoryRepository = MemoryRepository(context: context, authService: authService)
         // Ensure the memory exists for the current user.
         memoryRepository.createMemory()
     }

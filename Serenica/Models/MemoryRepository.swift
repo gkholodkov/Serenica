@@ -5,10 +5,10 @@ class MemoryRepository: MemoryRepositoryProtocol {
     private var context: NSManagedObjectContext
     private var authService: AuthService
 
-    init(context: NSManagedObjectContext? = nil) {
+    init(context: NSManagedObjectContext? = nil, authService: AuthService? = nil) {
         // Use provided context or fall back to the shared one.
         self.context = context ?? CoreDataManager.shared.container.viewContext
-        self.authService = AuthService(context: self.context)
+        self.authService = authService ?? AuthService(context: self.context)
     }
     
     // MARK: - Dependency Updates
@@ -50,7 +50,7 @@ class MemoryRepository: MemoryRepositoryProtocol {
     /// Fetch the current user's memory by mapping the Core Data entities to the Swift model.
     func fetchMemory() -> Memory {
         guard let userId = authService.currentUser?.id else {
-            fatalError("User not authenticated")
+            return Memory()
         }
         
         var memoryResult: Memory!
@@ -62,7 +62,7 @@ class MemoryRepository: MemoryRepositoryProtocol {
             
             guard let userEntity = try? context.fetch(userRequest).first,
                   let memoryEntity = userEntity.memory else {
-                fatalError("Memory not found. Did you call createMemory()?")
+                return
             }
             
             // Map entities to your Memory model...

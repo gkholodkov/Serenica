@@ -13,8 +13,8 @@ struct SerenicaApp: App {
 
         // your existing service graph…
         let auth = AuthService(context: context)
-        let eventSvc = EventService(context: context)
-        let memoryService = AgentMemoryService(context: context)
+        let eventSvc = EventService(context: context, authService: auth)
+        let memoryService = AgentMemoryService(context: context, authService: auth)
         let aiService = MistralAIService()
         let emotionRecognitionService = EmotionRecognitionService(llmService: aiService)
         let factExtractionService = FactExtractionService(llmService: aiService)
@@ -31,10 +31,10 @@ struct SerenicaApp: App {
             eventService: eventSvc,
             eventContextManager: eventContextManager
         )
-        let msgSvc = MessageService(context: context, aiAgent: aiAgent)
+        let msgSvc = MessageService(context: context, authService: auth, aiAgent: aiAgent)
 
-        _authService    = StateObject(wrappedValue: auth)
-        _eventService   = StateObject(wrappedValue: eventSvc)
+        _authService = StateObject(wrappedValue: auth)
+        _eventService = StateObject(wrappedValue: eventSvc)
         _messageService = StateObject(wrappedValue: msgSvc)
     }
     

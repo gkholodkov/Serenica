@@ -22,12 +22,13 @@ class EventService: ObservableObject {
     
     /// Designated initializer.
     init(context: NSManagedObjectContext,
+         authService: AuthService? = nil,
          recurrenceManager: EventRecurrenceManager = EventRecurrenceManager(),
          notificationService: EventNotificationService = EventNotificationService(),
          overdueManager: OverdueManager = OverdueManager()) {
         self.context = context
         // Important: We pass the same context into the repository.
-        self.repository = EventRepository(context: context)
+        self.repository = EventRepository(context: context, authService: authService)
         self.recurrenceManager = recurrenceManager
         self.notificationService = notificationService
         self.overdueManager = overdueManager

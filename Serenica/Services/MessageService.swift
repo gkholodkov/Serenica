@@ -14,11 +14,12 @@ class MessageService: ObservableObject {
     
     /// Designated initializer.
     init(context: NSManagedObjectContext,
+         authService: AuthService? = nil,
          repository: MessageRepository = MessageRepository(context: CoreDataManager.shared.viewContext),
          aiAgent: AIAppAgent) {
         self.context = context
         // Important: Pass the same context into the repository.
-        self.repository = MessageRepository(context: context)
+        self.repository = MessageRepository(context: context, authService: authService)
         self.aiAgent = aiAgent
         fetchMessages()
     }

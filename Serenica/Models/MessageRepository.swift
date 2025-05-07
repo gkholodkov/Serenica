@@ -5,9 +5,9 @@ class MessageRepository: MessageRepositoryProtocol {
     private var context: NSManagedObjectContext
     private var authService: AuthService
 
-    init(context: NSManagedObjectContext? = nil) {
+    init(context: NSManagedObjectContext? = nil, authService: AuthService? = nil) {
         self.context = context ?? CoreDataManager.shared.container.viewContext
-        self.authService = AuthService(context: self.context)
+        self.authService = authService ?? AuthService(context: self.context)
     }
     
     func fetchMessages() -> [Message] {
