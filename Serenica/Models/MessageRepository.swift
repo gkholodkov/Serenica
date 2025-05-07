@@ -57,7 +57,7 @@ class MessageRepository: MessageRepositoryProtocol {
     func deleteMessage(withId id: UUID) {
         let request = NSFetchRequest<MessageEntity>(entityName: "MessageEntity")
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        
+            
         do {
             if let entity = try context.fetch(request).first {
                 context.delete(entity)
@@ -70,17 +70,24 @@ class MessageRepository: MessageRepositoryProtocol {
     
     func clearAllMessages() {
         guard let userId = authService.currentUser?.id else { return }
-        let fetchRequest: NSFetchRequest<NSFetchRequestResult> = NSFetchRequest(entityName: "MessageEntity")
-        fetchRequest.predicate = NSPredicate(format: "user.id == %@", userId as CVarArg)
-        let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
-        
+
+        let request = NSFetchRequest<MessageEntity>(entityName: "MessageEntity")
+        request.predicate = NSPredicate(format: "user.id == %@", userId as CVarArg)
+        request.includesPropertyValues = false
+        request.returnsObjectsAsFaults = true
+
         do {
-            try context.execute(deleteRequest)
+            let messages = try context.fetch(request)
+            for msg in messages {
+                context.delete(msg)
+            }
+
             try context.save()
         } catch {
-            print("Error clearing messages: \(error.localizedDescription)")
+            print("Error clearing messages:", error)
         }
     }
+
     
     // Optionally update AuthService and context if needed:
     func updateAuthService(_ newAuthService: AuthService) {

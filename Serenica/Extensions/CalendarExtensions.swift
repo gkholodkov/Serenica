@@ -76,6 +76,28 @@ extension Date {
         let nanoseconds = Double(components.nanosecond ?? 0)
         return hours * 3600 + minutes * 60 + seconds + nanoseconds / 1_000_000_000
     }
+    
+    static func dateSpan(
+        from start: Date?,
+        to end: Date?,
+        component: Calendar.Component = .day,
+        step value: Int = 1,
+        calendar: Calendar = .current
+    ) -> [Date] {
+        guard let start = start, let end = end else { return [] }
+        guard start <= end else { return [] }
+        var dates: [Date] = []
+        var current = start
+        
+        while current <= end {
+            dates.append(current)
+            guard let next = calendar.date(byAdding: component, value: value, to: current) else {
+                break
+            }
+            current = next
+        }
+        return dates
+    }
 }
 
 extension DateFormatter {
@@ -96,6 +118,36 @@ extension DateFormatter {
     static let monthFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "LLLL"
+        return formatter
+    }()
+    
+    static let localDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        formatter.timeZone = TimeZone.current
+        return formatter
+    }()
+    
+    static let localDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone.current
+        return formatter
+    }()
+    
+    static let germanLongDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
+    static let germanShortTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "de_DE")
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
         return formatter
     }()
 }

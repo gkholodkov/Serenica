@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788" systemVersion="24D81" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788" systemVersion="24E263" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
     <entity name="EmotionEntity" representedClassName="EmotionEntity" syncable="YES" codeGenerationType="class">
         <attribute name="arousal" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="consecutiveOccurrences" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="dominance" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
         <attribute name="label" optional="YES" attributeType="String"/>
         <attribute name="pleasure" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
@@ -25,14 +26,17 @@
         <relationship name="user" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="UserEntity" inverseName="events" inverseEntity="UserEntity"/>
     </entity>
     <entity name="FactEntity" representedClassName="FactEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="importance" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="key" attributeType="String"/>
+        <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="ttl" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="NO"/>
         <attribute name="value" attributeType="String"/>
         <relationship name="memory" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="MemoryEntity" inverseName="knowledge" inverseEntity="MemoryEntity"/>
     </entity>
     <entity name="MemoryEntity" representedClassName="MemoryEntity" syncable="YES" codeGenerationType="class">
-        <relationship name="emotionalState" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="EmotionEntity" inverseName="memory" inverseEntity="EmotionEntity"/>
-        <relationship name="knowledge" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="FactEntity" inverseName="memory" inverseEntity="FactEntity"/>
-        <relationship name="personality" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="PersonalityProfileEntity" inverseName="memory" inverseEntity="PersonalityProfileEntity"/>
+        <relationship name="emotionalState" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="EmotionEntity" inverseName="memory" inverseEntity="EmotionEntity"/>
+        <relationship name="knowledge" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="FactEntity" inverseName="memory" inverseEntity="FactEntity"/>
+        <relationship name="personality" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="PersonalityProfileEntity" inverseName="memory" inverseEntity="PersonalityProfileEntity"/>
         <relationship name="user" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="UserEntity" inverseName="memory" inverseEntity="UserEntity"/>
     </entity>
     <entity name="MessageEntity" representedClassName="MessageEntity" syncable="YES" codeGenerationType="class">

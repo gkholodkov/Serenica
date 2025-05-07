@@ -3,6 +3,7 @@ import CoreData
 
 struct MainTabView: View {
     @EnvironmentObject private var authService: AuthService
+    @EnvironmentObject private var messageService: MessageService
     @Environment(\.managedObjectContext) private var viewContext
 
     // Remove the custom initializer and StateObject creation.
@@ -18,6 +19,11 @@ struct MainTabView: View {
                             ToolbarItem(placement: .navigationBarTrailing) {
                                 Button("Sign Out") {
                                     authService.signOut()
+                                }
+                            }
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button("Reset Conversation") {
+                                    messageService.clearMessages()
                                 }
                             }
                         }

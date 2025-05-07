@@ -40,7 +40,8 @@ class DeepSeekAIService: AIServiceProtocol {
             messages: allMessages,
             temperature: 0.7,
             tools: [],
-            tool_choice: ToolChoice.none
+            tool_choice: ToolChoice.none,
+            response_format: nil
         )
         
         request.httpBody = try JSONEncoder().encode(chatRequest)
@@ -67,7 +68,8 @@ class DeepSeekAIService: AIServiceProtocol {
             messages: allMessages,
             temperature: 0.0,
             tools: tools,
-            tool_choice: .auto
+            tool_choice: .auto,
+            response_format: nil
         )
         
         request.httpBody = try JSONEncoder().encode(chatRequest)
@@ -90,7 +92,8 @@ class DeepSeekAIService: AIServiceProtocol {
             messages: allMessages,
             temperature: 0.0,
             tools: [],
-            tool_choice: ToolChoice.none
+            tool_choice: ToolChoice.none,
+            response_format: nil
         )
         
         request.httpBody = try JSONEncoder().encode(chatRequest)
@@ -102,7 +105,40 @@ class DeepSeekAIService: AIServiceProtocol {
            let emotionData = content.data(using: .utf8) {
             return try JSONDecoder().decode(EmotionRecognitionResponse.self, from: emotionData)
         } else {
-            return EmotionRecognitionResponse(pleasure: 0, arousal: 0.5, dominance: 0.5, label: EmotionLabel.calm.rawValue)
+            return EmotionRecognitionResponse(pleasure: 0, arousal: 0.5, dominance: 0.5, label: EmotionLabel.neutrality.rawValue)
         }
+    }
+    
+    func getFactExtractionResponse(_ message: String, factContext: [String], messageHistory: [ChatMessage]? = nil) async throws -> [Fact] {
+        var request = URLRequest(url: URL(string: baseURL)!)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        
+        let allMessages = [factExtractionMessage] + (messageHistory ?? []) + [ChatMessage(role: .user, content: message)]
+        let chatRequest = ChatRequest(
+                model: "deepseek-chat",
+                messages: allMessages,
+                temperature: 0.0,
+                tools: [factExtractionTool(facts: factContext)],
+                tool_choice: .required,
+                response_format: nil
+            )
+        
+        request.httpBody = try JSONEncoder().encode(chatRequest)
+        
+        let (data, _) = try await httpClient.performRequest(with: request)
+        let response = try JSONDecoder().decode(ChatResponse.self, from: data)
+        
+        var newFacts: [Fact] = []
+        for toolCall in response.choices.first?.message.tool_calls ?? [] {
+            guard let argsData = toolCall.function.arguments.data(using: .utf8) else {
+                continue
+            }
+            let decodedArgs = try JSONDecoder().decode(FactArgs.self, from: argsData)
+            newFacts.append(Fact(key: decodedArgs.factKey, value: decodedArgs.factValue, ttl: decodedArgs.timeToLive, timestamp: Date(), importance: 0))
+        }
+        
+        return newFacts
     }
 }

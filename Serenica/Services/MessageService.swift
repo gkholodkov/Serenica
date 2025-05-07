@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 class MessageService: ObservableObject {
     private let repository: MessageRepository
-    private let aiAgent: AIEventAgent
+    private let aiAgent: AIAppAgent
     private(set) var context: NSManagedObjectContext
     
     @Published var messages: [Message] = []
@@ -15,7 +15,7 @@ class MessageService: ObservableObject {
     /// Designated initializer.
     init(context: NSManagedObjectContext,
          repository: MessageRepository = MessageRepository(context: CoreDataManager.shared.viewContext),
-         aiAgent: AIEventAgent) {
+         aiAgent: AIAppAgent) {
         self.context = context
         // Important: Pass the same context into the repository.
         self.repository = MessageRepository(context: context)
@@ -35,6 +35,7 @@ class MessageService: ObservableObject {
     /// Call this to update the auth service (for example, when the user signs in or out).
     func updateAuthService(_ newAuthService: AuthService) {
         repository.updateAuthService(newAuthService)
+        aiAgent.updateAuthService(newAuthService)
         fetchMessages()
     }
     
@@ -52,7 +53,7 @@ class MessageService: ObservableObject {
         await aiAgent.handleUserMessage(text) { [weak self] response in
             guard let self = self else { return }
             let agentMessage = Message(content: response, isFromUser: false)
-            self.repository.addMessage(agentMessage)
+            repository.addMessage(agentMessage)
             // Refresh published messages on the main thread.
             Task { @MainActor in
                 self.fetchMessages()
@@ -69,7 +70,16 @@ class MessageService: ObservableObject {
     /// Clears all messages.
     func clearMessages() {
         repository.clearAllMessages()
+        aiAgent.reset()
         messages.removeAll()
+    }
+    
+    func onEndConversation(reason: EndReason) async {
+        await aiAgent.endConversation(reason: reason)
+    }
+    
+    func refreshLastConversation() {
+        aiAgent.refreshLastConversation(messages)
     }
     
     // MARK: - Data Refresh

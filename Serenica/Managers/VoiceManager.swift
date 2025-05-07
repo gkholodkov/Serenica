@@ -1,118 +1,138 @@
+import Foundation
 import Speech
 import AVFoundation
+import Combine
 
-class VoiceManager: NSObject, VoiceManaging {
-    @Published var isRecording = false
-    @Published var transcribedText = ""
-    @Published var isPermissionGranted = false
-    @Published var isTranscriptionFinished = false
-    private var currentTranscription = ""
-    
-    private var speechRecognizer: SFSpeechRecognizer?
-    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
-    private var recognitionTask: SFSpeechRecognitionTask?
-    private let audioEngine = AVAudioEngine()
-    
-    private let synthesizer = AVSpeechSynthesizer()
-    private let isPreview: Bool
-    
-    init(isPreview: Bool = false) {
-        self.isPreview = isPreview
-        super.init()
-        
-        if !isPreview {
-            speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-            checkPermissions()
+/// A simple, standalone manager you can wrap in `AnyVoiceManager`.
+final class VoiceManager: NSObject, VoiceManaging {
+  // MARK: Published state
+  @Published var isRecording = false
+  @Published var transcribedText = ""
+  @Published var isPermissionGranted = false
+  @Published var isTranscriptionFinished = false
+
+  // MARK: Private speech/AV props
+  private let audioEngine = AVAudioEngine()
+  private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+  private var recognitionTask: SFSpeechRecognitionTask?
+  private let speechRecognizer = SFSpeechRecognizer(locale: .autoupdatingCurrent)
+  private let synthesizer = AVSpeechSynthesizer()
+
+  override init() {
+    super.init()
+    requestPermissions()
+  }
+
+  private func requestPermissions() {
+    // Speech
+    SFSpeechRecognizer.requestAuthorization { status in
+      DispatchQueue.main.async {
+        self.isPermissionGranted = (status == .authorized)
+      }
+    }
+    // Microphone
+    AVAudioApplication.requestRecordPermission { granted in
+        DispatchQueue.main.async {
+            // only true if both speech & mic are granted
+            self.isPermissionGranted = self.isPermissionGranted && granted
         }
     }
-    
-    private func checkPermissions() {
-        SFSpeechRecognizer.requestAuthorization { [weak self] status in
-            DispatchQueue.main.async {
-                self?.isPermissionGranted = status == .authorized
-            }
-        }
-        
-        if #available(iOS 17.0, *) {
-            AVAudioApplication.requestRecordPermission { [weak self] granted in
-                DispatchQueue.main.async {
-                    self?.isPermissionGranted = self?.isPermissionGranted ?? false && granted
-                }
-            }
-        } else {
-            AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
-                DispatchQueue.main.async {
-                    self?.isPermissionGranted = self?.isPermissionGranted ?? false && granted
-                }
-            }
-        }
+  }
+
+  func startRecording() throws {
+    guard isPermissionGranted else {
+      throw RecordingError.permissionDenied
     }
-    
-    func startRecording() throws {
-        guard !isPreview else { return }
-        
-        resetAudio()
-        
-        let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
-        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-        
-        let inputNode = audioEngine.inputNode
-        let recordingFormat = AVAudioFormat(standardFormatWithSampleRate: audioSession.sampleRate,
-                                          channels: 1)
-        guard let format = recordingFormat else {
-            throw NSError(domain: "VoiceManager", code: -1, 
-                        userInfo: [NSLocalizedDescriptionKey: "Could not create audio format"])
+    // If already running, toggle off
+    if audioEngine.isRunning {
+      stopRecording()
+      return
+    }
+
+    // Prepare speech request
+    let req = SFSpeechAudioBufferRecognitionRequest()
+    req.shouldReportPartialResults = true
+    recognitionRequest = req
+
+    // Kick off the recognition task
+    recognitionTask = speechRecognizer?
+      .recognitionTask(with: req) { [weak self] result, error in
+        guard let self = self else { return }
+
+        if let result = result {
+          // update partial/final text
+          DispatchQueue.main.async {
+            self.transcribedText = result.bestTranscription.formattedString
+          }
+          if result.isFinal {
+            self.finishRecording()
+          }
         }
-        
-        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        guard let recognitionRequest else { return }
-        
-        recognitionRequest.shouldReportPartialResults = true
-        
-        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            guard let self else { return }
-            if let result {
-                self.transcribedText = result.bestTranscription.formattedString
-            }
-            if error != nil {
-                self.stopRecording()
-            }
+        else if error != nil {
+          self.finishRecording()
         }
-        
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            recognitionRequest.append(buffer)
-        }
-        
-        audioEngine.prepare()
-        try audioEngine.start()
-        isRecording = true
+      }
+
+    // Configure audio session
+    let audioSession = AVAudioSession.sharedInstance()
+    try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+    try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+
+    // Route mic input into the recognition request
+    let inputNode = audioEngine.inputNode
+    let format = inputNode.outputFormat(forBus: 0)
+    inputNode.installTap(
+      onBus: 0,
+      bufferSize: 1_024,
+      format: format
+    ) { buffer, _ in
+      req.append(buffer)
     }
-    
-    func stopRecording() {
-        guard !isPreview else { return }
-        audioEngine.stop()
-        recognitionRequest?.endAudio()
-        isRecording = false
+
+    audioEngine.prepare()
+    try audioEngine.start()
+
+    DispatchQueue.main.async {
+      self.isRecording = true
+      self.isTranscriptionFinished = false
     }
-    
-    func speakText(_ text: String) {
-        guard !isPreview else { return }
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.5
-        utterance.pitchMultiplier = 1.0
-        utterance.volume = 1.0
-        
-        synthesizer.speak(utterance)
+  }
+
+  func stopRecording() {
+    guard audioEngine.isRunning else { return }
+    audioEngine.stop()
+    recognitionRequest?.endAudio()
+    finishRecording()
+  }
+
+  private func finishRecording() {
+    // tear down
+    audioEngine.inputNode.removeTap(onBus: 0)
+    recognitionTask?.cancel()
+    recognitionTask = nil
+    recognitionRequest = nil
+
+    DispatchQueue.main.async {
+      self.isRecording = false
+      self.isTranscriptionFinished = true
     }
-    
-    private func resetAudio() {
-        audioEngine.inputNode.removeTap(onBus: 0)
-        recognitionTask?.cancel()
-        recognitionTask = nil
-        recognitionRequest = nil
-        transcribedText = ""
-        isTranscriptionFinished = false
+  }
+
+  func speakText(_ text: String) {
+    let utterance = AVSpeechUtterance(string: text)
+    utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+    utterance.rate = 0.5
+    synthesizer.speak(utterance)
+  }
+
+  enum RecordingError: LocalizedError {
+    case permissionDenied
+    var errorDescription: String? {
+      switch self {
+      case .permissionDenied:
+        return "Microphone or Speech recognition permission was not granted."
+      }
     }
-} 
+  }
+}
+

@@ -42,11 +42,13 @@ class EventService: ObservableObject {
     }
     
     // MARK: - Getters for events fields
-    func getEvents(byDate date: Date? = nil,
+    func getEvents(byDates dates: [Date]? = nil,
                    byTitle titleContains: String? = nil) -> [Event] {
         return (events+recurringEvents+undatedEvents+completedEvents).filter { event in
             // Date filtering
-            let dateMatches: Bool = date == nil || event.hasOccurrence(on: date!)
+            print(dates)
+            let dateMatches: Bool = dates == nil || dates!.contains(where: { date in event.hasOccurrence(on: date) })
+            print (dateMatches)
 
             // Title filtering
             let titleMatches: Bool
@@ -55,6 +57,7 @@ class EventService: ObservableObject {
             } else {
                 titleMatches = true // No title filter applied
             }
+            print(titleMatches)
             
             // Return true only if both conditions are satisfied
             return dateMatches && titleMatches
@@ -247,7 +250,6 @@ class EventService: ObservableObject {
         occurrenceEvent.isOverdue = updatedOccurrence.isOverdue && !updatedOccurrence.isCompleted && updatedOccurrence.endDate ?? Date() < Date()
         // CASE 1: The target date is the first occurrence.
         if let eventStart = event.startDate, calendar.isDate(eventStart, inSameDayAs: targetDay) {
-            print("Update Single Occurrence: First Occurrence")
             // Add the updated occurrence as a standalone event.
             addEvent(occurrenceEvent)
             // Advance the recurring event to the next occurrence.
@@ -257,7 +259,6 @@ class EventService: ObservableObject {
                 
         // CASE 2: No further recurrences exist after targetDay (i.e. last occurrence).
         else if nextOccurrence(for: event, after: targetDay) == nil {
-            print("Update Single Occurrence: Last Occurrence")
             // Add the updated occurrence as a standalone event.
             addEvent(occurrenceEvent)
             
@@ -277,7 +278,6 @@ class EventService: ObservableObject {
         
         // CASE 3: Intermediate occurrence.
         else {
-            print("Update Single Occurrence: Intermediate Occurrence")
             // Add the updated occurrence as a standalone event.
             addEvent(occurrenceEvent)
             
@@ -339,14 +339,12 @@ class EventService: ObservableObject {
         // CASE 1: If the target date is the first occurrence.
         if let eventStart = event.startDate, calendar.isDate(eventStart, inSameDayAs: targetDay) {
             // Simply advance the recurring event to the next occurrence.
-            print("Remove first occurrence.")
             advanceRecurringEvent(event)
             return
         }
         
         // CASE 2: If there are no further recurrences after the target date.
         else if nextOccurrence(for: event, after: targetDay) == nil {
-            print("Remove last occurrence.")
             var updatedEvent = event
             updatedEvent.recurrenceEndDate = targetDay
             if let excluded = updatedEvent.recurrenceExcludedDates {
@@ -359,7 +357,6 @@ class EventService: ObservableObject {
         }
         
         // CASE 3: Intermediate occurrence.
-        print("Remove random occurrence.")
         var updatedEvent = event
         var excludedDates = updatedEvent.recurrenceExcludedDates ?? []
         if !excludedDates.contains(where: { calendar.isDate($0, inSameDayAs: targetDay) }) {
@@ -467,7 +464,7 @@ class EventService: ObservableObject {
             recurrenceEndDate: nil,
             recurrenceExcludedDates: []
         )
-        self.addEvent(completedEvent)
+        addEvent(completedEvent)
     }
     
     private func advanceRecurringEvent(_ event: Event) {
@@ -494,9 +491,13 @@ class EventService: ObservableObject {
     
     // MARK: - Data Refresh
     func fetchEvents() {
-        // Fetch non-recurring events.
+        // Perform background fetching and mapping.
         let nonRecurringEntities = repository.fetchNonRecurringEvents()
-        events = nonRecurringEntities.map { entity in
+        let recurringEntities = repository.fetchRecurringEvents()
+        let completedEntities = repository.fetchCompletedEvents()
+        let undatedEntities = repository.fetchUndatedEvents()
+
+        let newEvents = nonRecurringEntities.map { entity in
             Event(
                 id: entity.id ?? UUID(),
                 title: entity.title ?? "",
@@ -515,9 +516,7 @@ class EventService: ObservableObject {
             )
         }
         
-        // Fetch recurring events.
-        let recurringEntities = repository.fetchRecurringEvents()
-        recurringEvents = recurringEntities.map { entity in
+        let newRecurringEvents = recurringEntities.map { entity in
             Event(
                 id: entity.id ?? UUID(),
                 title: entity.title ?? "",
@@ -536,9 +535,7 @@ class EventService: ObservableObject {
             )
         }
         
-        // Fetch completed events.
-        let completedEntities = repository.fetchCompletedEvents()
-        completedEvents = completedEntities.map { entity in
+        let newCompletedEvents = completedEntities.map { entity in
             Event(
                 id: entity.id ?? UUID(),
                 title: entity.title ?? "",
@@ -557,9 +554,7 @@ class EventService: ObservableObject {
             )
         }
         
-        // Fetch undated events.
-        let undatedEntities = repository.fetchUndatedEvents()
-        undatedEvents = undatedEntities.map { entity in
+        let newUndatedEvents = undatedEntities.map { entity in
             Event(
                 id: entity.id ?? UUID(),
                 title: entity.title ?? "",
@@ -577,7 +572,16 @@ class EventService: ObservableObject {
                 recurrenceExcludedDates: (entity.recurrenceExcludedDates as? [Date]) ?? []
             )
         }
+        
+        // Update all published properties on the main thread.
+        DispatchQueue.main.async { [weak self] in
+            self?.events = newEvents
+            self?.recurringEvents = newRecurringEvents
+            self?.completedEvents = newCompletedEvents
+            self?.undatedEvents = newUndatedEvents
+        }
     }
+
     
     
     // MARK: - Preview Helper

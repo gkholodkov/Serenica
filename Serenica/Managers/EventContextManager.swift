@@ -7,6 +7,7 @@ actor EventContextManager {
     
     func setEventsCacheAndIdMap(_ events: [Event]) {
         eventMap.removeAll()
+        eventsCache.removeAll()
         var summaries: [String] = []
         for (index, event) in events.enumerated() {
             eventMap[index + 1] = event.id

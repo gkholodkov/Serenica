@@ -76,6 +76,7 @@ class EventRepository : EventRepositoryProtocol {
     // MARK: - CRUD Methods
     
     func addEvent(_ event: Event) throws {
+
         let entity = EventEntity(context: context)
         entity.id = event.id
         entity.title = event.title
@@ -86,7 +87,7 @@ class EventRepository : EventRepositoryProtocol {
         entity.notificationId = event.notificationId
         entity.notificationInterval = event.notificationInterval ?? 0
         entity.isOverdue = event.isOverdue
-        
+            
         // Save recurrence fields.
         entity.recurrenceType = Int16(event.recurrenceType.rawValue)
         entity.recurrenceInterval = Int16(event.recurrenceInterval)
@@ -94,7 +95,7 @@ class EventRepository : EventRepositoryProtocol {
         entity.recurrenceExcludedDates = event.recurrenceExcludedDates as NSArray?
         
         // Link event to the current user.
-        if let userId = authService.currentUser?.id {
+        if let userId = self.authService.currentUser?.id {
             let userRequest = NSFetchRequest<UserEntity>(entityName: "UserEntity")
             userRequest.predicate = NSPredicate(format: "id == %@", userId as CVarArg)
             if let userEntity = try? context.fetch(userRequest).first {
@@ -117,7 +118,7 @@ class EventRepository : EventRepositoryProtocol {
         entity.notificationId = event.notificationId
         entity.notificationInterval = event.notificationInterval ?? 0
         entity.isOverdue = event.isOverdue
-        
+            
         // Update recurrence-related fields.
         entity.recurrenceType = Int16(event.recurrenceType.rawValue)
         entity.recurrenceInterval = Int16(event.recurrenceInterval)

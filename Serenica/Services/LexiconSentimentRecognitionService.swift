@@ -2,7 +2,15 @@ import Foundation
 
 struct LexiconSentimentRecognitionService {
     func analyzePADEmotion(from text: String, at date: Date = Date()) -> Emotion {
-        let words = text.lowercased().split(separator: " ")
+        var words = [String]()
+        text.enumerateSubstrings(
+            in: text.startIndex...,
+            options: [.byWords, .localized]
+        ) { substr, _, _, _ in
+            if let w = substr {
+                words.append(w.lowercased())
+            }
+        }
         
         var totalPleasure = 0.0
         var totalArousal = 0.0
@@ -15,12 +23,14 @@ struct LexiconSentimentRecognitionService {
                 totalArousal += padScores.arousal
                 totalDominance += padScores.dominance
                 matchedWords += 1
+                print("Word recognized: \(word)")
             }
+            print("Word not recognized: \(word)")
         }
 
         guard matchedWords > 0 else {
             // Default neutral emotion if no words match
-            return Emotion(pleasure: 0.0, arousal: 0.5, dominance: 0.5, label: .calm, timestamp: date)
+            return Emotion(pleasure: 0.0, arousal: 0.5, dominance: 0.5, label: .neutrality, timestamp: date)
         }
 
         // Average scores

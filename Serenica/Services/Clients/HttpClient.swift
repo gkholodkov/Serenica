@@ -18,7 +18,8 @@ struct HttpClient {
             } catch {
                 attempts += 1
                 lastError = error
-                print("Attempt \(attempts) failed: \(error). Retrying in \(retryDelay) seconds...")
+                let nserror = error as NSError
+                print("Attempt \(attempts) failed: \(nserror) – \(nserror.userInfo). Retrying in \(retryDelay) seconds...")
                 try await Task.sleep(nanoseconds: UInt64(retryDelay * Double(NSEC_PER_SEC)))
             }
         }

@@ -12,7 +12,24 @@ struct ChatView: View {
     @State private var showRecordingError = false
     @FocusState private var isFocused: Bool
     @State private var isProcessing = false
-    
+    @State private var showScrollButton = false
+    // MARK: – scroll‐tracking state
+    @State private var scrollViewHeight: CGFloat = 0
+    @State private var bottomAnchorY: CGFloat = 0
+
+    private struct ScrollViewHeightKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = nextValue()
+        }
+    }
+
+    private struct BottomAnchorKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = nextValue()
+        }
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -22,7 +39,17 @@ struct ChatView: View {
             Divider()
                 .background(Serenity.Colors.divider)
             
-            inputSection
+            ChatInputBar(
+                text: $messageText,
+                voiceManager: voiceManager,
+                isProcessing: isProcessing
+            ) { newMessage in
+                isProcessing = true
+                Task {
+                    await messageService.sendMessage(newMessage)
+                }
+                isProcessing = false
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: voiceManager.transcribedText) { _, newValue in
@@ -39,6 +66,7 @@ struct ChatView: View {
         }
         .onAppear {
             messageService.updateAuthService(authService)
+            messageService.refreshLastConversation()
         }
     }
     
@@ -56,73 +84,82 @@ struct ChatView: View {
                     }
                 }
                 .padding(.vertical, Serenity.Layout.standardPadding)
+                Color.clear
+                    .frame(height: 1)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear
+                                .preference(
+                                    key: BottomAnchorKey.self,
+                                    value: geo.frame(in: .named("chatScroll")).minY
+                                )
+                        }
+                    )
+            }
+            .coordinateSpace(name: "chatScroll")
+            .overlay(
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(
+                            key: ScrollViewHeightKey.self,
+                            value: geo.size.height
+                        )
+                }
+            )
+            // update our state whenever those two values change
+            .onPreferenceChange(ScrollViewHeightKey.self) { scrollViewHeight = $0
+            }
+            .onPreferenceChange(BottomAnchorKey.self) { newY in
+                bottomAnchorY = newY
+                
+                let bubblePadding = Serenity.Layout.standardPadding * 6
+                    let threshold: CGFloat = bubblePadding
+                    let shouldShow = bottomAnchorY > (scrollViewHeight + threshold)
+
+                    // Animate the appearance/disappearance
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        showScrollButton = shouldShow
+                    }
+            }
+            .onAppear {
+                DispatchQueue.main.async {
+                    scrollToLastMessage(proxy: proxy)
+                }
             }
             .onChange(of: messageService.messages.count) { _, _ in
-                scrollToLastMessage(proxy: proxy)
-            }
-        }
-    }
-    
-    private var inputSection: some View {
-        HStack(spacing: Serenity.Layout.smallPadding) {
-            // Voice recording button
-            Button(action: toggleRecording) {
-                Image(systemName: isRecording ? "stop.circle.fill" : "mic.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(isRecording ? .red : Serenity.Colors.primary)
-                    .frame(width: Serenity.Layout.minimumTapTarget, 
-                           height: Serenity.Layout.minimumTapTarget)
-            }
-            
-            // Text input field
-            TextField("Type a message...", text: $messageText)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .focused($isFocused)
-                .disabled(isRecording)
-            
-            // Send button
-            if isProcessing {
-                ProgressView()
-                    .frame(width: Serenity.Layout.minimumTapTarget, 
-                           height: Serenity.Layout.minimumTapTarget)
-            } else {
-                Button(action: { sendMessage(messageText) }) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(Serenity.Colors.primary)
-                        .frame(width: Serenity.Layout.minimumTapTarget, 
-                               height: Serenity.Layout.minimumTapTarget)
+                DispatchQueue.main.async {
+                    scrollToLastMessage(proxy: proxy)
                 }
-                .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+            .overlay(
+                Group {
+                    if showScrollButton {
+                        Button {
+                            withAnimation { scrollToLastMessage(proxy: proxy) }
+                        } label: {
+                            Image(systemName: "arrow.down.circle")
+                                .font(.system(size: 24))
+                                .frame(width:        Serenity.Layout.minimumTapTarget,
+                                   height: Serenity.Layout.minimumTapTarget)
+                                .shadow(radius: 2)
+                        }
+                        .padding(Serenity.Layout.smallPadding)
+                        .transition(
+                            .move(edge: .bottom)
+                            .combined(with: .opacity)
+                        )
+                    }
+                }
+                .zIndex(1),
+                alignment: .bottom
+            )
         }
-        .padding(.horizontal, Serenity.Layout.standardPadding)
-        .padding(.vertical, Serenity.Layout.smallPadding)
     }
     
     private func scrollToLastMessage(proxy: ScrollViewProxy) {
         if let lastMessage = messageService.messages.last {
             withAnimation {
                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
-            }
-        }
-    }
-    
-    private func toggleRecording() {
-        if isRecording {
-            voiceManager.stopRecording()
-            isRecording = false
-            if !voiceManager.transcribedText.isEmpty {
-                sendMessage(voiceManager.transcribedText)
-                voiceManager.transcribedText = ""
-            }
-        } else {
-            messageText = ""
-            do {
-                try voiceManager.startRecording()
-                isRecording = true
-            } catch {
-                showRecordingError = true
             }
         }
     }
@@ -142,7 +179,7 @@ struct ChatView: View {
         }
     }
     
-    // Update the groupedMessages computed property
+    // Update the groupedMessages computed p roperty
     private var groupedMessages: [(Date, [Message])] {
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: messageService.messages) { message in

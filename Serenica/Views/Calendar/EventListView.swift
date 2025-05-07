@@ -38,7 +38,6 @@ struct EventListView: View {
                 // user tapped an event row
                 selectedEvent = occurrence.event
                 selectedEventOccurrence = occurrence
-                print(eventService.recurringEvents)
             }
         }
     }

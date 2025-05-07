@@ -1,4 +1,5 @@
 import Foundation
+import CoreData
 
 extension Memory {
     func toString() -> String {
@@ -13,8 +14,10 @@ extension Memory {
         }
         
         // Knowledge summary.
-        let factKeys = knowledge.prefix(3).map { $0.key }
-        let knowledgeSummary = "Knowledge: \(knowledge.count) fact(s)" + (factKeys.isEmpty ? "" : " [\(factKeys.joined(separator: ","))]")
+        let facts = knowledge.filter({ fact in
+            fact.ttl == nil || fact.importance >= 9
+        }).shuffled().prefix(5).map { "\($0.key): \($0.value)" }
+        let knowledgeSummary = "Knowledge: \(knowledge.count) fact(s)." + (facts.isEmpty ? "" : "\(facts.count) random fact(s): [\(facts.joined(separator: ","))]")
         parts.append(knowledgeSummary)
         
         // Emotional state summary.
@@ -41,6 +44,120 @@ extension [Emotion] {
             dominance: self.reduce(into: 0) { result, emotion in result += emotion.dominance } / Double(self.count),
             timestamp: self.last?.timestamp ?? Date()
         )
+    }
+    
+    func extractDynamics() -> (meanP: Double, meanA: Double, meanD: Double, slopeP: Double, slopeA: Double, slopeD: Double, sigmaP: Double, sigmaA: Double, sigmaD: Double) {
+        guard self.count >= 2 else {
+            // fallback to zeros
+            return (meanP:0, meanA:0, meanD:0,
+                        slopeP:0, slopeA:0, slopeD:0,
+                        sigmaP:0, sigmaA:0, sigmaD:0)
+        }
+        
+        let ps = self.map(\.pleasure)
+        let as_ = self.map(\.arousal)
+        let ds = self.map(\.dominance)
+            
+        func mean(_ xs:[Double]) -> Double {
+            xs.reduce(0,+)/Double(xs.count)
+        }
+        func stddev(_ xs:[Double], μ:Double) -> Double {
+            let varSum = xs.map { pow($0-μ,2) }.reduce(0,+)
+            return sqrt(varSum / Double(xs.count))
+        }
+            
+        let μP = mean(ps), μA = mean(as_), μD = mean(ds)
+        let σP = stddev(ps, μ:μP),
+            σA = stddev(as_, μ:μA),
+            σD = stddev(ds, μ:μD)
+        
+        func slope(values: [Double], times: [TimeInterval]) -> Double {
+            let μx = mean(times.map { Double($0) })
+            let μy = mean(values)
+            let numerator = zip(times, values)
+                .map { (t,y) in (Double(t)-μx)*(y-μy) }
+                .reduce(0,+)
+            let denominator = times.map { pow(Double($0)-μx,2) }.reduce(0,+)
+            return denominator != 0 ? numerator/denominator : 0
+        }
+        
+        let timestamps = self.map { $0.timestamp.timeIntervalSince1970 }
+        let slopeP = slope(values: ps,  times: timestamps)
+        let slopeA = slope(values: as_, times: timestamps)
+        let slopeD = slope(values: ds,  times: timestamps)
+        
+        return (meanP: μP, meanA: μA, meanD: μD,
+                slopeP: slopeP, slopeA: slopeA, slopeD: slopeD,
+                sigmaP: σP, sigmaA: σA, sigmaD: σD)
+    }
+    
+    func weightedModeLabel(
+        timeDecayLambda λ: Double = 0.0,
+        intensityAlpha α: Double = 1.0
+    ) -> EmotionLabel?
+    {
+        let now = Date()
+        var scoreByLabel = [EmotionLabel: Double]()
+
+        for emo in self {
+            // 1) Discretize into PADKey
+            let pL = EmotionLabel.level(emo.pleasure,
+                                        low: EmotionThresholds.pNegative,
+                                        high: EmotionThresholds.pPositive)
+            let aL = EmotionLabel.level(emo.arousal,
+                                        low: EmotionThresholds.aLow,
+                                        high: EmotionThresholds.aHigh)
+            let dL = EmotionLabel.level(emo.dominance,
+                                        low: EmotionThresholds.dLow,
+                                        high: EmotionThresholds.dHigh)
+            let key = PADKey(p: pL, a: aL, d: dL)
+            guard let lbl = EmotionLevelCollection.emotionMap[key] else { continue }
+
+            // 2) Compute bucket-center for each dimension
+            let pCenter: Double = {
+                switch pL {
+                case .Low:  return (-1.0 + EmotionThresholds.pNegative) / 2
+                case .Mid:  return (EmotionThresholds.pNegative + EmotionThresholds.pPositive) / 2
+                case .High: return (EmotionThresholds.pPositive + 1.0) / 2
+                }
+            }()
+            let aCenter: Double = {
+                switch aL {
+                case .Low:  return (0.0 + EmotionThresholds.aLow) / 2
+                case .Mid:  return (EmotionThresholds.aLow + EmotionThresholds.aHigh) / 2
+                case .High: return (EmotionThresholds.aHigh + 1.0) / 2
+                }
+            }()
+            let dCenter: Double = {
+                switch dL {
+                case .Low:  return (0.0 + EmotionThresholds.dLow) / 2
+                case .Mid:  return (EmotionThresholds.dLow + EmotionThresholds.dHigh) / 2
+                case .High: return (EmotionThresholds.dHigh + 1.0) / 2
+                }
+            }()
+
+            // 3) Intensity weight = 1 + α * EuclideanDistance
+            let dist = sqrt(
+                pow(emo.pleasure - pCenter, 2) +
+                pow(emo.arousal - aCenter, 2) +
+                pow(emo.dominance - dCenter, 2)
+            )
+            let intensityWeight = 1.0 + α * dist
+
+            // 4) Time-decay weight = exp(−λ · Δt)
+            let timeWeight: Double = λ > 0
+                ? exp(-λ * now.timeIntervalSince(emo.timestamp))
+                : 1.0
+            
+            let occurrenceWeight = Double(emo.consecutiveOccurrences)
+
+            // 5) Vote
+            let vote = intensityWeight * timeWeight * occurrenceWeight
+            scoreByLabel[lbl, default: 0.0] += vote
+        }
+
+        // 6) Return the label with max total vote
+        return scoreByLabel.max(by: { $0.value < $1.value })?.key
     }
 }
 
@@ -194,11 +311,15 @@ extension MBTIType {
     }
 }
 
-
+enum EndReason {
+  case idleTimeout, appBackground, viewDismissed
+}
 
 // Decoded args for fetching events
 struct GetEventsArgs: Codable {
-    let date: String?
+    let dateFrom: String?
+    let dateTo: String?
+    let specificDates: [String]?
     let titleQuery: String?
 }
 
@@ -215,7 +336,8 @@ struct CreateEventArgs: Codable {
 
 // Decoded args for modifying an event
 struct ModifyEventArgs: Codable {
-    let eventId: Int
+    let eventId: Int?
+    let originalTitle: String?
     let date: String?
     let action: String
     let applyForAllAfter: Bool?
@@ -225,4 +347,18 @@ struct ModifyEventArgs: Codable {
     let notificationInterval: Int?
     let recurrenceType: String?
     let recurrenceInterval: Int?
+}
+
+struct EmotionArgs: Codable {
+    let pleasure: Double
+    let arousal: Double
+    let dominance: Double
+    let label: String
+}
+
+struct FactArgs: Codable {
+    let factKey: String
+    let factValue: String
+    let timeToLive: Int?
+    let importance: Int
 }

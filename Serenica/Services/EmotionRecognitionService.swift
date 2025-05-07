@@ -12,6 +12,7 @@ struct EmotionRecognitionService {
     func analyzeEmotionHybrid(_ message: String, previousEmotion: Emotion?) async throws -> Emotion {
         // First, quick lexicon-based check
         let lexiconEmotion = lexiconSentimentRecognitionService.analyzePADEmotion(from: message)
+        print("Lexicon emotion: \(lexiconEmotion)")
 
         // Check if lexicon-based change is significant
         let significantChange =
@@ -26,8 +27,9 @@ struct EmotionRecognitionService {
             let response = try await llmService.getEmotionRecognitionResponse(message)
             return Emotion(pleasure: response.pleasure, arousal: response.arousal, dominance: response.dominance, label: EmotionLabel.from(response.label), timestamp: Date())
         } else {
-            // Accept lexicon result as good enough
-            return lexiconEmotion
+            // As of now do the same, in the following maybe improve lexicon-based approach
+            let response = try await llmService.getEmotionRecognitionResponse(message)
+            return Emotion(pleasure: response.pleasure, arousal: response.arousal, dominance: response.dominance, label: EmotionLabel.from(response.label), timestamp: Date())
         }
     }
 
