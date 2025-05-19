@@ -166,11 +166,14 @@ struct CompletedEventsView: View {
                                 dailyEvent: dailyEvent,
                                 onTap: { selectedEvent = dailyEvent.event }
                             )
-                        }
-                        .onDelete { indexSet in
-                            if let index = indexSet.first {
-                                eventToDelete = dayGroup.events[index].event
-                                showingDeletionConfirmation = true
+                            .swipeActions(edge: .trailing) {
+                                // Delete button
+                                Button(role: .destructive) {
+                                    eventToDelete = dailyEvent.event
+                                    showingDeletionConfirmation = true
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
                         }
                     }

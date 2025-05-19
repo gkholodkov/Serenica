@@ -5,9 +5,9 @@ protocol EventRepositoryProtocol {
     func fetchNonRecurringEvents() -> [EventEntity]
     func fetchRecurringEvents() -> [EventEntity]
     func fetchCompletedEvents() -> [EventEntity]
-    func addEvent(_ event: Event) throws
-    func updateEvent(_ event: Event) throws
-    func deleteEvent(withId id: UUID) throws
+    func addEvent(_ event: Event)
+    func updateEvent(_ event: Event)
+    func deleteEvent(withId id: UUID)
     func updateAuthService(_ newAuthService: AuthService)
     func updateContext(_ newContext: NSManagedObjectContext)
 }

@@ -9,6 +9,7 @@ class MessageService: ObservableObject {
     private(set) var context: NSManagedObjectContext
     
     @Published var messages: [Message] = []
+    @Published var isAgentTyping: Bool = false
     
     // MARK: - Initializers
     
@@ -42,6 +43,33 @@ class MessageService: ObservableObject {
     
     // MARK: - Business Operations
     
+    /// Sends first message if needed. Starts converrsation, if appropriate
+    /// It shouldn't be handled by the repository, or anyhow affect it
+    func startConversation() async {
+        if !messages.isEmpty && messages.last!.timestamp.isNotEarlierThanNHoursBeforeNow() { return }
+        
+        var firstMessageText: String = ""
+        if messages.isEmpty {
+            firstMessageText = "You're speaking to the user for the first time. Introduce yourself, a smoothly start a conversation."
+        } else if messages.last?.timestamp.isNotEarlierThanNHoursBeforeNow() == false {
+            firstMessageText = "You haven't been speaking to the user for couple hours. Send him gentle and subtle reminder that you're there for them."
+        }
+        
+        isAgentTyping = true
+        
+        // Delegate to the agent for handling the message (including event tool calls).
+        await aiAgent.handleUserMessage(firstMessageText) { [weak self] response in
+            guard let self = self else { return }
+            let agentMessage = Message(content: response, isFromUser: false)
+            repository.addAgentMessage(agentMessage)
+            // Refresh published messages on the main thread.
+            Task { @MainActor in
+                self.isAgentTyping = false
+                self.fetchMessages()
+            }
+        }
+    }
+    
     /// Sends a message from the user and then gets an AI-generated response.
     /// The conversation is persisted via the repository.
     func sendMessage(_ text: String) async {
@@ -49,14 +77,16 @@ class MessageService: ObservableObject {
         let userMessage = Message(content: text, isFromUser: true)
         repository.addMessage(userMessage)
         fetchMessages()
+        isAgentTyping = true
         
         // Delegate to the agent for handling the message (including event tool calls).
         await aiAgent.handleUserMessage(text) { [weak self] response in
             guard let self = self else { return }
             let agentMessage = Message(content: response, isFromUser: false)
-            repository.addMessage(agentMessage)
+            repository.addAgentMessage(agentMessage)
             // Refresh published messages on the main thread.
             Task { @MainActor in
+                self.isAgentTyping = false
                 self.fetchMessages()
             }
         }
@@ -75,8 +105,15 @@ class MessageService: ObservableObject {
         messages.removeAll()
     }
     
-    func onEndConversation(reason: EndReason) async {
-        await aiAgent.endConversation(reason: reason)
+    /// Marks all messages, which were nor fact checked as checked
+    func factCheckMessages() {
+        repository.factCheckMessages()
+        fetchMessages()
+    }
+    
+    func onEndConversation() async {
+        await aiAgent.endConversation(messages)
+        factCheckMessages()
     }
     
     func refreshLastConversation() {

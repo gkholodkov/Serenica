@@ -55,6 +55,20 @@ class NotificationManager {
         let minutes = event.notificationInterval ?? 0
         let triggerDate = date.addingTimeInterval(-1 * minutes * 60)
         
+        let now = Date()
+        let gracePeriod: TimeInterval = 90
+        
+        print("Reached Notification Manager")
+        
+        // **Add Debugging Here**
+        print("Attempting to schedule notification for \(event.title) at \(triggerDate)")
+
+        // Check if triggerDate is in the future:
+        if triggerDate < now && now.timeIntervalSince(triggerDate) > gracePeriod {
+            print("❌ Error: Trigger date is in the past. Notification will NOT fire.")
+            return
+        }
+        
         let content = UNMutableNotificationContent()
         content.title = event.title
         content.body = !event.isOverdue ? "Hey, just a heads-up—your event is about to start! Time to wrap up your current task and get ready!" : "Hey, apparently you've forgotten about your event yesterday! Don't worry, we've got you covered :)";

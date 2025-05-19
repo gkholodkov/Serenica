@@ -98,6 +98,14 @@ extension Event {
                self.notificationInterval == other.notificationInterval
     }
     
+    var reminderDate: Date? {
+        guard let interval = notificationInterval, let start = startDate, notificationId != nil else {
+            return nil
+        }
+        
+        return Calendar.current.date(byAdding: .minute, value: -Int(interval), to: start)
+    }
+    
     func hasOccurrence(on date: Date) -> Bool {
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: date)

@@ -13,20 +13,8 @@ struct MainTabView: View {
                 // Chat tab
                 NavigationStack {
                     ChatView()
-                        .navigationTitle("Hello, \(authService.currentUser?.username ?? "")")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                Button("Sign Out") {
-                                    authService.signOut()
-                                }
-                            }
-                            ToolbarItem(placement: .navigationBarLeading) {
-                                Button("Reset Conversation") {
-                                    messageService.clearMessages()
-                                }
-                            }
-                        }
+                        .navigationBarHidden(true)
+                        
                 }
                 .tabItem {
                     Image(systemName: "captions.bubble")
@@ -40,6 +28,15 @@ struct MainTabView: View {
                 }
                 .tabItem {
                     Image(systemName: "calendar")
+                        .frame(width: 20, height: 20)
+                }
+                
+                NavigationStack {
+                    ProfileView()
+                        .navigationBarHidden(true)
+                }
+                .tabItem {
+                    Image(systemName: "person")
                         .frame(width: 20, height: 20)
                 }
             }

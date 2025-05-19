@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct SerenicaApp: App {
@@ -10,6 +11,7 @@ struct SerenicaApp: App {
     
     init() {
         let context = persistenceController.viewContext
+        _ = NotificationManager.shared
 
         // your existing service graph…
         let auth = AuthService(context: context)
@@ -36,6 +38,10 @@ struct SerenicaApp: App {
         _authService = StateObject(wrappedValue: auth)
         _eventService = StateObject(wrappedValue: eventSvc)
         _messageService = StateObject(wrappedValue: msgSvc)
+        
+        // Request notifications permission once at app startup:
+        requestNotificationPermissionOnce()
+        verifyNotificationPermissions()
     }
     
     var body: some Scene {
@@ -51,8 +57,47 @@ struct SerenicaApp: App {
                         for: UIApplication.willResignActiveNotification
                     )
                 ) { _ in
-                    Task { await messageService.onEndConversation(reason: .appBackground) }
+                    Task { await messageService.onEndConversation() }
                 }
+        }
+    }
+    
+    func requestNotificationPermissionOnce() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus == .notDetermined else {
+                print("Notifications already requested or user has responded.")
+                return
+            }
+            
+            UNUserNotificationCenter.current().requestAuthorization(
+                options: [.alert, .sound, .badge]
+            ) { granted, error in
+                if let error = error {
+                    print("Notification authorization failed: \(error.localizedDescription)")
+                } else {
+                    print("Notifications granted: \(granted)")
+                }
+            }
+        }
+    }
+    
+    func verifyNotificationPermissions() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            print("Authorization Status: \(settings.authorizationStatus.rawValue)")
+            switch settings.authorizationStatus {
+            case .authorized:
+                print("✅ Authorized")
+            case .denied:
+                print("🚫 Denied")
+            case .notDetermined:
+                print("❓ Not Determined")
+            case .provisional:
+                print("⚠️ Provisional")
+            case .ephemeral:
+                print("⚠️ Ephemeral")
+            @unknown default:
+                print("⚠️ Unknown Status")
+            }
         }
     }
 }

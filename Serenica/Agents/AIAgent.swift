@@ -9,9 +9,7 @@ class AIAppAgent {
     let personalityCreationService: PersonalityCreationService
     let eventService: EventService
     let eventContextManager: EventContextManager
-    
-    private let endDebouncer = Debouncer(delay: 5 * 60)
-    
+        
     init(authService: AuthService, memoryService: AgentMemoryService, aiService: AIServiceProtocol, emotionRecognitionService: EmotionRecognitionService, factExtractionService: FactExtractionService, personalityCreationService: PersonalityCreationService, eventService: EventService, eventContextManager: EventContextManager) {
         self.memoryService = memoryService
         self.aiService = aiService
@@ -34,32 +32,24 @@ class AIAppAgent {
     
     func handleUserMessage(_ message: String, completion: @escaping (String) -> Void) async {
         do {
-            resetEndTimer()
             let userContext = memoryService.fetchLongTermMemoryDescription() ?? ""
             let longTermMemoryKnowledge = userContext.isEmpty ? nil : ChatMessage(role: .assistant, content: userContext)
-            let shortTermMemoryToolMessages = memoryService.fetchShortTermToolsMemory()
-            let shortTermMemoryChatMessages = memoryService.fetchShortTermChatMemory()
+            let shortTermMemoryMessages = memoryService.fetchShortTermMemory()
             var newShortTermMemoryKnowledge: [ChatMessage] = [ChatMessage(role: .user, content: message)]
             
-            let toolsCalls = try await aiService.getToolCallsResponse(message, shortTermMemory: shortTermMemoryToolMessages)
-            print(toolsCalls)
+            let toolsCalls = try await aiService.getToolCallsResponse(newOrderedMessages: newShortTermMemoryKnowledge, shortTermMemory: shortTermMemoryMessages)
             
-            var acumulatedToolCallExplanation: String = ""
-            
-            for (index, toolCall) in toolsCalls.enumerated() {
-                print("Tool call: \(toolCall)")
-                let toolCallResultChatMessages = await handleToolCalls(toolCall)
-                
-                newShortTermMemoryKnowledge.append(ChatMessage(role: .assistant, content: "", tool_calls: [toolCall]))
-                newShortTermMemoryKnowledge.append(toolCallResultChatMessages.toolMessage)
-                acumulatedToolCallExplanation += "\(toolCallResultChatMessages.explanationMessage.content)"
-                if (index < toolsCalls.count - 1) {
-                    acumulatedToolCallExplanation += "\n"
+            if !toolsCalls.isEmpty {
+                newShortTermMemoryKnowledge.append(ChatMessage(role: .assistant, content: "", tool_calls: toolsCalls))
+                for toolCall in toolsCalls {
+                    print("Tool call: \(toolCall)")
+                    let toolCallResultChatMessage = await handleToolCall(toolCall)
+                    
+                    newShortTermMemoryKnowledge.append(toolCallResultChatMessage)
                 }
             }
             
-            let prefixMessage = acumulatedToolCallExplanation.isEmpty ? nil : ChatMessage(role: .assistant, content: acumulatedToolCallExplanation, prefix: true)
-            let nlpResponse = try await aiService.getNaturalLanguageResponse(message, prefixMessage: prefixMessage, shortTermMemory: shortTermMemoryChatMessages, longTermMemory: longTermMemoryKnowledge)
+            let nlpResponse = try await aiService.getNaturalLanguageResponse(newOrderedMessages: newShortTermMemoryKnowledge, shortTermMemory: shortTermMemoryMessages, longTermMemory: longTermMemoryKnowledge)
             
             newShortTermMemoryKnowledge.append(ChatMessage(role: .assistant, content: nlpResponse.first?.message.content ?? ""))
             
@@ -82,25 +72,23 @@ class AIAppAgent {
         }
     }
     
-    private func handleToolCalls(_ toolCall: ToolCall) async -> (toolMessage: ChatMessage, explanationMessage: ChatMessage) {
+    private func handleToolCall(_ toolCall: ToolCall) async -> ChatMessage {
         switch toolCall.function.name {
         case "createEvent":
             guard let argsData = toolCall.function.arguments.data(using: .utf8),
                   authService.currentUser != nil else {
-                let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Invalid arguments format was used for createEvent.\"", name: "createEvent", tool_call_id: toolCall.id)
-                let errorChatMessage = ChatMessage(role: .assistant, content: "I'm sorry, something went wrong while processing your event. Could you please try again, or contact customer support team, if it happens repeatedly?")
+                let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Invalid arguments format was used for createEvent.\"}", name: "createEvent", tool_call_id: toolCall.id)
                 
-                return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                return functionResponseMessage
             }
             do {
                 let decodedArgs = try JSONDecoder().decode(CreateEventArgs.self, from: argsData)
                 
                 // Since title is required in the new args, we check if it's empty.
                 if decodedArgs.title.isEmpty {
-                    let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Missing required field: title.\"", name: "createEvent", tool_call_id: toolCall.id)
-                    let errorChatMessage = ChatMessage(role: .assistant, content: "I didn't catch an event title. Could you please let me know what it should be?")
+                    let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Missing required field: title.\"}", name: "createEvent", tool_call_id: toolCall.id)
                     
-                    return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                    return functionResponseMessage
                 }
                 var finalStart: Date? = nil
                 var finalEnd: Date? = nil
@@ -146,7 +134,7 @@ class AIAppAgent {
                     title: decodedArgs.title,
                     startDate: finalStart,
                     endDate: finalEnd,
-                    notes: "",
+                    notes: decodedArgs.notes ?? "",
                     userId: authService.currentUser!.id,
                     notificationId: (decodedArgs.notificationInterval != nil && decodedArgs.notificationInterval != -1) ? UUID() : nil,
                     notificationInterval: decodedArgs.notificationInterval != nil ? Double(decodedArgs.notificationInterval!) : nil,
@@ -166,60 +154,52 @@ class AIAppAgent {
                 let startDateString = event.startDate != nil ? "\(DateFormatter.germanLongDate.string(from: event.startDate!)) \(DateFormatter.germanShortTime.string(from: event.startDate!))" : ""
                 let endDateString = event.endDate != nil ? "\(DateFormatter.germanLongDate.string(from: event.endDate!)) \(DateFormatter.germanShortTime.string(from: event.endDate!))" : ""
                                 
-                let functionResponseMessage = ChatMessage(role: .tool, content: "\"result\": \"Event created successfully.\"", name: "createEvent", tool_call_id: toolCall.id)
-                let explanationChatMessage = ChatMessage(role: .assistant, content: "I've scheduled your \"\(event.title)\" event \(event.startDate != nil && event.endDate != nil ? "from \(startDateString) to \(endDateString)" : "and added it to an Unassigned folder"). I hope it gives you a little time to care for yourself.")
+                let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"Event \"\(event.title)\" created successfully \(event.startDate != nil && event.endDate != nil ? "from \(startDateString) to \(endDateString)" : "and added it to an Unassigned folder").\"}", name: "createEvent", tool_call_id: toolCall.id)
                 
-                return (toolMessage: functionResponseMessage, explanationMessage: explanationChatMessage)
+                return functionResponseMessage
             } catch {
-                let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Failed to decode arguments for createEvent: \(error.localizedDescription).\"", name: "getEvents", tool_call_id: toolCall.id)
-                let errorChatMessage = ChatMessage(role: .assistant, content: "I couldn't understand your event details. Could you please check and try again? Also, if it happens repeatedly, could you please inform our customer support about that?")
+                let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Failed to decode arguments for createEvent: \(error.localizedDescription).\"}", name: "getEvents", tool_call_id: toolCall.id)
                 
-                return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                return functionResponseMessage
             }
             
         case "modifyEvent":
             guard let argsData = toolCall.function.arguments.data(using: .utf8) else {
-                let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Invalid arguments format was used for modifyEvent.\"", name: "modifyEvent", tool_call_id: toolCall.id)
-                let errorChatMessage = ChatMessage(role: .assistant, content: "I encountered an error while processing your event. Could you please try again?")
+                let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Invalid arguments format was used for modifyEvent.\"}", name: "modifyEvent", tool_call_id: toolCall.id)
                 
-                return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                return functionResponseMessage
             }
             do {
                 let modifyArgs = try JSONDecoder().decode(ModifyEventArgs.self, from: argsData)
-                let lookupDate = DateFormatter.localDateFormatter.date(from: modifyArgs.date ?? "")
+                let lookupDate = DateFormatter.localDateFormatter.date(from: modifyArgs.originalDate ?? "")
                 var event: Event
                 
                 if let eventId = modifyArgs.eventId {
                     guard let uuid = await eventContextManager.uuid(forTemporaryId: eventId) else {
-                        let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Invalid UUID for event context manager.\"", name: "modifyEvent", tool_call_id: toolCall.id)
-                        let errorChatMessage = ChatMessage(role: .assistant, content: "I couldn't locate the event you'd like to change in my memory. Could you share some specific details about it?")
+                        let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Invalid UUID for event context manager: \(eventId).\"}", name: "modifyEvent", tool_call_id: toolCall.id)
                         
-                        return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                        return functionResponseMessage
                     }
                     guard let potentialEvent = eventService.getEvent(byId: uuid) else {
-                        let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"No matching event found.\"", name: "modifyEvent", tool_call_id: toolCall.id)
-                        let errorChatMessage = ChatMessage(role: .assistant, content: "It seems like I memorized event incorrectly, I'm sorry about that. Could you please share some specific details about it, so that I could search for it?")
+                        let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"No matching event found due to the incorrect mapping of id.\"}", name: "modifyEvent", tool_call_id: toolCall.id)
                         
-                        return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                        return functionResponseMessage
                     }
                     event = potentialEvent
                 } else {
                     let events = eventService.getEvents(byDates: lookupDate != nil ? [lookupDate!] : nil, byTitle: modifyArgs.originalTitle)
-                    let dateSearchDetails = lookupDate != nil ? " around the \(DateFormatter.germanLongDate.string(from: lookupDate!))" : ""
-                    let titleSearchDetails = modifyArgs.originalTitle != nil ? " with \"\(modifyArgs.originalTitle!)\" title" : ""
                     
                     if events.isEmpty {
-                        let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"No matching event found.\"", name: "modifyEvent", tool_call_id: toolCall.id)
-                        let errorChatMessage = ChatMessage(role: .assistant, content: "Sorry, I've searched for events\(dateSearchDetails)\(titleSearchDetails) as you asked, however, I couldn't find anything. Could you double check some details?")
+                        let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"No event matching title=\(String(describing: modifyArgs.originalTitle)), date=\(String(describing: lookupDate)) found.\"}", name: "modifyEvent", tool_call_id: toolCall.id)
                         
-                        return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                        return functionResponseMessage
                     } else if events.count > 1 {
                         await eventContextManager.setEventsCacheAndIdMap(events)
                         let summaries = await eventContextManager.getCurrentEventCacheKnowledge() ?? ""
-                        let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Multiple events found.\"", name: "modifyEvent", tool_call_id: toolCall.id)
-                        let errorChatMessage = ChatMessage(role: .assistant, content: "I've found these events\(dateSearchDetails)\(titleSearchDetails) in your calendar:\n \(summaries)\n\n")
+                        let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"Multiple events found.\", \"summaries\": \(summaries)}", name: "modifyEvent", tool_call_id: toolCall.id)
+
                         
-                        return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                        return functionResponseMessage
                     } else {
                         event = events[0]
                     }
@@ -229,34 +209,34 @@ class AIAppAgent {
                 case "update":
                     var updatedEvent = event
                     let now = Date()
-                    if let newTitle = modifyArgs.title, !newTitle.isEmpty {
+                    if let newTitle = modifyArgs.newTitle, !newTitle.isEmpty {
                         updatedEvent.title = newTitle
                     }
                     
                     var changedRecurrence = false
-                    if let newRecurrenceTypeStr = modifyArgs.recurrenceType,
+                    if let newRecurrenceTypeStr = modifyArgs.newRecurrenceType,
                         let recurrenceType = RecurrenceType.fromString(newRecurrenceTypeStr) {
                         updatedEvent.recurrenceType = recurrenceType
                         changedRecurrence = true
                     }
-                    if let newRecurrenceInterval = modifyArgs.recurrenceInterval {
+                    if let newRecurrenceInterval = modifyArgs.newRecurrenceInterval {
                         updatedEvent.recurrenceInterval = newRecurrenceInterval
                         changedRecurrence = true
                     }
                     
                     // 1) Try parsing each incoming string (nil or empty → nil Date)
                     let parsedStartDate: Date? = {
-                        guard let s = modifyArgs.startDate, !s.isEmpty else { return nil }
+                        guard let s = modifyArgs.newStartDate, !s.isEmpty else { return nil }
                         return DateFormatter.localDateTimeFormatter.date(from: s)
                     }()
 
                     let parsedEndDate: Date? = {
-                        guard let s = modifyArgs.endDate, !s.isEmpty else { return nil }
+                        guard let s = modifyArgs.newEndDate, !s.isEmpty else { return nil }
                         return DateFormatter.localDateTimeFormatter.date(from: s)
                     }()
 
                     // 2) If either was explicitly emptied, clear everything
-                    if modifyArgs.startDate == "" || modifyArgs.endDate == "" {
+                    if modifyArgs.newStartDate == "" || modifyArgs.newEndDate == "" {
                         updatedEvent.startDate = nil
                         updatedEvent.endDate = nil
                         updatedEvent.recurrenceType = .none
@@ -299,7 +279,7 @@ class AIAppAgent {
                             updatedEvent.recurrenceEndDate = end.addingTimeInterval(3600)
                         }
                     }
-                    if let newNotificationInterval = modifyArgs.notificationInterval {
+                    if let newNotificationInterval = modifyArgs.newNotificationInterval {
                         if newNotificationInterval == -1 {
                             updatedEvent.notificationId = nil
                         } else {
@@ -319,9 +299,8 @@ class AIAppAgent {
                         eventService.updateEvent(updatedEvent, initialNotificationId: event.notificationId)
                     }
                     
-                    let functionResponseMessage = ChatMessage(role: .tool, content: "\"result\": \"Event updated successfully.\"", name: "modifyEvent", tool_call_id: toolCall.id)
-                    let explanationChatMessage = ChatMessage(role: .assistant, content: "I've gently updated your event \"\(event.title)\". I hope this adjustment helps you feel more in control.")
-                    return (toolMessage: functionResponseMessage, explanationMessage: explanationChatMessage)
+                    let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"Event \"\(event.title)\" updated successfully.\"}", name: "modifyEvent", tool_call_id: toolCall.id)
+                    return functionResponseMessage
                 case "delete":
                     if modifyArgs.applyForAllAfter == true && event.recurrenceType != .none {
                         eventService.deleteOccurrence(of: event, on: lookupDate ?? Date())
@@ -331,32 +310,30 @@ class AIAppAgent {
                         eventService.deleteEvent(withId: event.id, initialNotificationId: event.notificationId)
                     }
                     
-                    let functionResponseMessage = ChatMessage(role: .tool, content: "\"result\": \"Event deleted successfully.\"", name: "modifyEvent", tool_call_id: toolCall.id)
-                    let explanationChatMessage = ChatMessage(role: .assistant, content: "I've removed the event \"\(event.title)\". I hope this change gives you more space to breathe.")
-                    return (toolMessage: functionResponseMessage, explanationMessage: explanationChatMessage)
+                    let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"Event \"\(event.title)\" deleted successfully.\"}", name: "modifyEvent", tool_call_id: toolCall.id)
+                    
+                    return functionResponseMessage
                 case "toggleCompletion":
                     eventService.toggleEventCompletion(event, on: lookupDate ?? Date())
                     
-                    let functionResponseMessage = ChatMessage(role: .tool, content: "\"result\": \"Event completion toggled successfully.\"", name: "modifyEvent", tool_call_id: toolCall.id)
-                    let explanationChatMessage = ChatMessage(role: .assistant, content: "I've marked your event \"\(event.title)\" as completed. Well done on taking care of yourself.")
-                    return (toolMessage: functionResponseMessage, explanationMessage: explanationChatMessage)
+                    let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"Event \"\(event.title)\" completion toggled successfully.\"}", name: "modifyEvent", tool_call_id: toolCall.id)
+
+                    return functionResponseMessage
                     
                 default:
-                    let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Unhandled action: \(modifyArgs.action).\"", name: toolCall.function.name, tool_call_id: toolCall.id)
-                    let errorChatMessage = ChatMessage(role: .assistant, content: "I'm sorry, I can't support that action right now.")
-                    return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                    let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Unhandled action: \(modifyArgs.action).\"}", name: toolCall.function.name, tool_call_id: toolCall.id)
+                    return functionResponseMessage
                 }
             } catch {
-                let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Failed to decode arguments for modifyEvent: \(error.localizedDescription).\"", name: toolCall.function.name, tool_call_id: toolCall.id)
-                let errorChatMessage = ChatMessage(role: .assistant, content: "I ran into some trouble understanding the details. Could you please check and try again, or contact our customer support, if it happened to you frequently?")
-                return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Failed to decode arguments for modifyEvent: \(error.localizedDescription).\"}", name: toolCall.function.name, tool_call_id: toolCall.id)
+                
+                return functionResponseMessage
             }
             
         case "getEvents":
             guard let argsData = toolCall.function.arguments.data(using: .utf8) else {
-                let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Invalid arguments format was used for getEvents.\"", name: "getEvents", tool_call_id: toolCall.id)
-                let errorChatMessage = ChatMessage(role: .assistant, content: "I encountered a hiccup while trying to fetch your events. Could you try again, or contact our customer support, if it annoys you?")
-                return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+                let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Invalid arguments format was used for getEvents.\"}", name: "getEvents", tool_call_id: toolCall.id)
+                return functionResponseMessage
             }
             do {
                 let getEventsArgs = try JSONDecoder().decode(GetEventsArgs.self, from: argsData)
@@ -366,50 +343,26 @@ class AIAppAgent {
                 await eventContextManager.setEventsCacheAndIdMap(events)
                 let summaries = await eventContextManager.getCurrentEventCacheKnowledge() ?? ""
                 
-                let dateSearchDetails = dates.isEmpty
-                    ? ""
-                    : dates.count == 1
-                      ? " on \(DateFormatter.germanLongDate.string(from: dates[0]))"
-                      : " around the \(dates.map { DateFormatter.germanLongDate.string(from: $0) }.joined(separator: ", or "))"
-
-                let titleSearchDetails = getEventsArgs.titleQuery != nil
-                    ? " with \"\(getEventsArgs.titleQuery!)\" title"
-                    : ""
+                let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"Events retrieved successfully.\", \"summaries\": \(summaries)}", name: "getEvents", tool_call_id: toolCall.id)
                 
-                let explanationContent: String
-                switch events.count {
-                case 0:
-                    explanationContent = "I couldn’t find any events\(dateSearchDetails)\(titleSearchDetails). Would you like help creating one?"
-                case 1:
-                    explanationContent = "Here’s the only event\(dateSearchDetails)\(titleSearchDetails) in your calendar: \(summaries)"
-                default:
-                    explanationContent = "I’ve found these events\(dateSearchDetails)\(titleSearchDetails) in your calendar:\n\(summaries)"
-                }
-                
-                let functionResponseMessage = ChatMessage(role: .tool, content: "\"summaries\": \"\(summaries))\"", name: "getEvents", tool_call_id: toolCall.id)
-                let explanationChatMessage = ChatMessage(role: .assistant, content: explanationContent)
-                return (toolMessage: functionResponseMessage, explanationMessage: explanationChatMessage)
+                return functionResponseMessage
             } catch {
-                let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Failed to decode arguments for getEvents: \(error.localizedDescription).\"", name: "getEvents", tool_call_id: toolCall.id)
-                let responseChatMessage = ChatMessage(role: .assistant, content: "I'm sorry, I couldn't understand the event details. Could you please check and try again? Or, if it happens repeatedly, please contact our customer support.")
-                return (toolMessage: functionResponseMessage, explanationMessage: responseChatMessage)
+                let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Failed to decode arguments for getEvents: \(error.localizedDescription).\"}", name: "getEvents", tool_call_id: toolCall.id)
+                return functionResponseMessage
             }
                 
         default:
-            let functionResponseMessage = ChatMessage(role: .tool, content: "\"error\": \"Unhandled function: \(toolCall.function.name).\"", name: toolCall.function.name, tool_call_id: toolCall.id)
-            let errorChatMessage = ChatMessage(role: .assistant, content: "I'm sorry, I can't support that action right now.")
-            return (toolMessage: functionResponseMessage, explanationMessage: errorChatMessage)
+            let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Unhandled function: \(toolCall.function.name).\"}", name: toolCall.function.name, tool_call_id: toolCall.id)
+            return functionResponseMessage
         }
     }
 
     /// Centralized “end of convo” entrypoint.
-    func endConversation(reason: EndReason) async {
-        endDebouncer.cancel()
-        
+    func endConversation(_ messages: [Message]) async {
         // Grab whatever chat you’ve collected so far:
         let memory = memoryService.fetchLongTermMemory()
         print(memory.knowledge)
-        let messages = memoryService.fetchShortTermChatMemory()
+        let messages: [ChatMessage] = messages.filter { !$0.isFactChecked }.map { message in ChatMessage(role: message.isFromUser ? .user : .assistant, content: message.content) }
         // Run your batch‑analysis (instead of per‑message):
         let newFacts = await factExtractionService.extractNewFacts(messages, knownFacts: memory.knowledge.enumerated().map { (index, fact) in "\(index + 1)) Key: \(fact.key); Value: \(fact.value)" })
         print("New facts: \(newFacts)")
@@ -419,19 +372,13 @@ class AIAppAgent {
     }
     
     func refreshLastConversation(_ messages: [Message]) {
-        if (memoryService.fetchShortTermChatMemory().isEmpty || memoryService.fetchShortTermToolsMemory().isEmpty) {
+        if (memoryService.fetchShortTermMemory().isEmpty || memoryService.fetchShortTermMemory().isEmpty) {
             memoryService.changeShortTermMemory(messages.map { message in ChatMessage(role: message.isFromUser ? .user : .assistant, content: message.content) })
         }
-        print("Refreshed short term memory: \(memoryService.fetchShortTermChatMemory())")
+        print("Refreshed short term memory: \(memoryService.fetchShortTermMemory())")
     }
     
     func reset() {
         memoryService.clearMemory()
-    }
-    
-    private func resetEndTimer() {
-        endDebouncer.schedule { [weak self] in
-            Task { await self?.endConversation(reason: .idleTimeout) }
-        }
     }
 }

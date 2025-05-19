@@ -11,7 +11,7 @@ actor EventContextManager {
         var summaries: [String] = []
         for (index, event) in events.enumerated() {
             eventMap[index + 1] = event.id
-            summaries.append("(\(index + 1)) \(event.summary)")
+            summaries.append("{\"eventId\": \(index + 1), \"title\": \"\(event.title)\", \"startDate\": \"\(String(describing: event.startDate))\", \"endDate\": \"\(String(describing: event.endDate))\", \"recurrenceType\": \"\(event.recurrenceType)\", \"recurrenceInterval\": \(event.recurrenceInterval), \"isCompleted\": \(event.isCompleted)}")
         }
         eventsCache = summaries
     }
@@ -21,9 +21,9 @@ actor EventContextManager {
     }
     
     func getCurrentEventCacheKnowledge() -> String? {
-        let summary = eventsCache.joined(separator: "\n")
+        let summary = eventsCache.joined(separator: ", ")
         guard !summary.isEmpty else { return nil }
         
-        return "\(summary)"
+        return "[\(summary)]"
     }
 }

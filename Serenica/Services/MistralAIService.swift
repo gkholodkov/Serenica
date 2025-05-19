@@ -14,7 +14,7 @@ class MistralAIService: AIServiceProtocol {
         self.httpClient = HttpClient(retryCount: retryCount, retryDelay: retryDelay)
     }
     
-    func getNaturalLanguageResponse(_ message: String, prefixMessage: ChatMessage?, shortTermMemory: [ChatMessage]?, longTermMemory: ChatMessage?) async throws -> [Choice] {
+    func getNaturalLanguageResponse(newOrderedMessages: [ChatMessage], shortTermMemory: [ChatMessage]?, longTermMemory: ChatMessage?) async throws -> [Choice] {
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -24,12 +24,7 @@ class MistralAIService: AIServiceProtocol {
         let importantInformationMessages = [systemMessage, longTermMemory].compactMap { $0 }
         
         // Combine system message, previous messages, and the new message.
-        let allMessages: [ChatMessage]
-        if let prefix = prefixMessage {
-            allMessages = importantInformationMessages + recentChatMessages + [ChatMessage(role: .user, content: message), prefix]
-        } else {
-            allMessages = importantInformationMessages + recentChatMessages + [ChatMessage(role: .user, content: message)]
-        }
+        let allMessages = importantInformationMessages + recentChatMessages + newOrderedMessages
         
         print("Natural Language Messages: \(allMessages.map{ message in return "\(message.role): \(message.content), tools: \(message.tool_calls?.first?.function.name ?? "none")" }.joined(separator: "\n"))")
         
@@ -50,7 +45,7 @@ class MistralAIService: AIServiceProtocol {
         return response.choices
     }
     
-    func getToolCallsResponse(_ message: String, shortTermMemory: [ChatMessage]?) async throws -> [ToolCall] {
+    func getToolCallsResponse(newOrderedMessages: [ChatMessage], shortTermMemory: [ChatMessage]?) async throws -> [ToolCall] {
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -58,9 +53,9 @@ class MistralAIService: AIServiceProtocol {
         
         let currentDatePrompt = ChatMessage(role: .system, content: "Today is \(Date().ISO8601Format()).")
         let recentChatMessages = shortTermMemory ?? []
-        let allMessages = [currentDatePrompt] + recentChatMessages + [ChatMessage(role: .user, content: message)]
+        let allMessages = [currentDatePrompt] + recentChatMessages + newOrderedMessages
         
-        print("Tool Call Messages: \(allMessages.map{ message in return "\(message.role): \(message.content), tools: \(message.tool_calls?.first?.function.name ?? "none")" }.joined(separator: "\n"))")
+        print("Tool Call Messages: \(allMessages.map{ message in return "\(message.role): \(message.content), tools: \(message.tool_calls?.map { toolCall in return "\(toolCall.function.name)"}.joined(separator: ", ") ?? "none")"}.joined(separator: "\n"))")
         
         let chatRequest = ChatRequest(
             model: "mistral-large-latest",

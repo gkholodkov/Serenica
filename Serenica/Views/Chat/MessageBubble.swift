@@ -8,7 +8,7 @@ struct MessageBubble: View {
             if message.isFromUser { 
                 Spacer(minLength: Serenity.Layout.minimumTapTarget) 
             }
-            
+           
             VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: Serenity.Layout.tinyPadding) {
                 Text(message.content)
                     .font(Serenity.Typography.messageText())
@@ -16,8 +16,8 @@ struct MessageBubble: View {
                     .padding(.horizontal, Serenity.Layout.standardPadding)
                     .padding(.vertical, Serenity.Layout.smallPadding)
                     .background(
-                        message.isFromUser ? 
-                            Serenity.Colors.messageBubbleUser : 
+                        message.isFromUser ?
+                            Serenity.Colors.messageBubbleUser :
                             Serenity.Colors.messageBubbleBot
                     )
                     .foregroundColor(Serenity.Colors.textPrimary)

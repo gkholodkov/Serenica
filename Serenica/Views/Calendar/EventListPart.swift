@@ -22,6 +22,10 @@ struct EventListPart: View {
     @State private var eventToDelete: EventOccurrence? = nil
     @State private var showingDeletionConfirmation: Bool = false
     
+    // New state variables for postponiing confirmation.
+    @State private var eventToPostpone: EventOccurrence? = nil
+    @State private var showingPostponeConfirmation: Bool = false
+    
     // State to track whether the overdue section is expanded.
     @State private var isOverdueSectionExpanded = true
     
@@ -52,11 +56,14 @@ struct EventListPart: View {
                                     selectedDate: selectedDate
                                 )
                                 .listRowSeparator(.hidden)
-                            }
-                            .onDelete { indexSet in
-                                if let index = indexSet.first {
-                                    eventToDelete = overdueOccurrences[index]
-                                    showingDeletionConfirmation = true
+                                .swipeActions(edge: .trailing) {
+                                    // Delete button
+                                    Button(role: .destructive) {
+                                        eventToDelete = occurrence
+                                        showingDeletionConfirmation = true
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
                             }
                         }
@@ -73,11 +80,14 @@ struct EventListPart: View {
                             selectedDate: selectedDate
                         )
                         .listRowSeparator(.hidden)
-                    }
-                    .onDelete { indexSet in
-                        if let index = indexSet.first {
-                            eventToDelete = nonOverdueOccurrences[index]
-                            showingDeletionConfirmation = true
+                        .swipeActions(edge: .trailing) {
+                            // Delete button
+                            Button(role: .destructive) {
+                                eventToDelete = occurrence
+                                showingDeletionConfirmation = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
                 }

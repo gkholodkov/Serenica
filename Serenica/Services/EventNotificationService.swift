@@ -12,6 +12,7 @@ import SwiftUI
 class EventNotificationService {
     // Schedule a notification for the given event.
     func scheduleNotification(for event: Event, on date: Date) {
+        print ("Reached the event notification service; scheduling notification for \(event) on \(date)")
         NotificationCenter.default.post(
             name: .eventNeedsNotification,
             object: nil,

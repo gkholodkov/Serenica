@@ -5,12 +5,14 @@ struct Message: Identifiable, Equatable {
     let content: String
     let isFromUser: Bool
     let timestamp: Date
+    let isFactChecked: Bool
     
-    init(id: UUID = UUID(), content: String, isFromUser: Bool, timestamp: Date = Date()) {
+    init(id: UUID = UUID(), content: String, isFromUser: Bool, timestamp: Date = Date(), isFactChecked: Bool = false) {
         self.id = id
         self.content = content
         self.isFromUser = isFromUser
         self.timestamp = timestamp
+        self.isFactChecked = isFactChecked
     }
     
     var timeString: String {
@@ -36,7 +38,8 @@ struct Message: Identifiable, Equatable {
         lhs.id == rhs.id &&
         lhs.content == rhs.content &&
         lhs.isFromUser == rhs.isFromUser &&
-        lhs.timestamp == rhs.timestamp
+        lhs.timestamp == rhs.timestamp &&
+        lhs.isFactChecked == rhs.isFactChecked
     }
 }
 

@@ -20,9 +20,9 @@ protocol AIServiceProtocol {
     var tools: [Tool] { get }
     
     /// Sends a chat request
-    func getNaturalLanguageResponse(_ message: String, prefixMessage: ChatMessage?, shortTermMemory: [ChatMessage]?, longTermMemory: ChatMessage?) async throws -> [Choice]
+    func getNaturalLanguageResponse(newOrderedMessages: [ChatMessage], shortTermMemory: [ChatMessage]?, longTermMemory: ChatMessage?) async throws -> [Choice]
     
-    func getToolCallsResponse(_ message: String, shortTermMemory: [ChatMessage]?) async throws -> [ToolCall]
+    func getToolCallsResponse(newOrderedMessages: [ChatMessage], shortTermMemory: [ChatMessage]?) async throws -> [ToolCall]
     
     func getEmotionRecognitionResponse(_ message: String) async throws -> EmotionRecognitionResponse
     
@@ -51,7 +51,7 @@ extension AIServiceProtocol {
         ChatMessage(
             role: .system,
             content: """
-            You're an empathetic mental health counselor familiar with German culture, replying warmly in English with clear, natural language. Be sensitive to ADHD, ASD, and MDD, providing tailored encouragement, practical coping strategies, and, when explicitly requested, German resources (e.g., adhdeurope.eu, adhs-deutschland.de). When severe issues (suicidal thoughts, self-harm, or psychosis) arise, remind users you're not a substitute for professional help and advise crisis support (Telefonseelsorge: 0800 111 0 111/0 222, International Helpline Berlin: 030-44 01 06 07, Nummer gegen Kummer: 0800 111 0 550). Adapt your tone, phrasing, and empathy to reflect the user's personality, current emotional state, and known context. Keep responses concise (~120 characters max). If a user indirectly expresses stress or difficulty, first offer empathy, then gently ask if they'd like to schedule a self-care event or reminder.
+            You are a warm, empathetic mental health awareness supporter. Always reply clearly and naturally in the user's language if available; if not, reply in English and kindly inform the user that their language isn't supported yet. Be attentive to signs of ADHD, ASD, and MDD. Use the user’s own self-descriptions and context from Memory Summary and message history to offer practical coping tips, encouragement, and relevant details—if appropriate. For severe concerns (such as suicidal thoughts, self-harm, or psychosis), remind the user that you’re not a substitute for professional help, and recommend crisis resources (Telefonseelsorge: 0800 111 0 111/0 222 for most cases, Nummer gegen Kummer: 0800 111 0 550 for parents regarding their children). Match your tone, phrasing, and empathy to the user's personality, emotional state, and situation. Keep responses concise (preferably under 120 characters, but it's a recommendation, not a restriction; allow longer responses if needed for crisis or support situations). If a user indirectly expresses stress or difficulty, offer empathy and gently try to make user speak out their struggles. Use facts, emotions, and personality knowldge from Memory Summary to address user's messages
             """
         )
     }
@@ -136,7 +136,7 @@ extension AIServiceProtocol {
         // Generate a description that informs the LLM of the fact keys already in memory.
         let existingKeysDescription = facts.isEmpty ? "nothing" : facts.joined(separator: "\n")
         let descriptionText = """
-        Extract new factual information about the user. Factual information consists of factKey (concise label for the entity of new fact, e.g. "hobbies", "home location", "relationship to parents", etc.), and factValue (the corresponding details extracted from the user's message, e.g. "user has very poor relationships with their mother", or "user faces issues with different sex people", etc.). Here are the currently available facts collected in the memory: \(existingKeysDescription). Use this information to update the user's knowledge base for already existing keys, or new keys, if appropriate. Always prefer to reuse the already existing keys, rather than to add a new one. If no new important fact is detected, the tool call should be empty.
+        Extract new factual information about the user. Factual information consists of factKey (concise label for the entity of new fact, e.g. "hobbies", "home location", "relationship to parents", "mental state", etc.), and factValue (the corresponding details extracted from the user's message, e.g. "user has very poor relationships with their mother", or "user faces issues with different sex people", etc.). Here are the currently available facts collected in the memory: \(existingKeysDescription). Use this information to update the user's knowledge base for already existing keys, or new keys, if appropriate. Always proritize to mark more crucial and emotionally important pieces of information (death of close relatives, sever mental states, etc.).
         """
         
         return Tool(
@@ -276,6 +276,13 @@ extension AIServiceProtocol {
                                 enumValues: nil,
                                 minimum: nil,
                                 maximum: nil
+                            ),
+                            "notes": ParameterDefinition(
+                                type: .string,
+                                description: "Any additional details regarding the event, which might be useful to remember (place, conditions, preparations details, etc.)",
+                                enumValues: nil,
+                                minimum: nil,
+                                maximum: nil
                             )
                         ],
                         required: ["title"],
@@ -286,7 +293,7 @@ extension AIServiceProtocol {
             Tool(
                 type: .function,
                 function: Function(
-                    description: "Update, delete, or mark an event complete. You may specify:\n1)eventId – if you already know the UUID of the event from the context, or\n2)originalTitle and/or date – in which case I will first fetch matching events automatically, then apply your requested action.",
+                    description: "Update, delete, or mark an event complete. You may specify:\n1)eventId – if you already know the unique number of the event from the context, or\n2)originalTitle and/or date – in which case I will first fetch matching events automatically, then apply your requested action.",
                     name: .modifyEvent,
                     parameters: FunctionParams(
                         type: .object,
@@ -305,9 +312,9 @@ extension AIServiceProtocol {
                                 minimum: nil,
                                 maximum: nil
                             ),
-                            "date": ParameterDefinition(
+                            "originalDate": ParameterDefinition(
                                 type: .string,
-                                description: "Date for which modification action was requested (ISO8601, format: yyyy-MM-dd). Date of event or occurence to apply the modification",
+                                description: "Original date of the event or the occurence for which modification action was requested (ISO8601, format: yyyy-MM-dd).",
                                 enumValues: nil,
                                 minimum: nil,
                                 maximum: nil
@@ -326,42 +333,42 @@ extension AIServiceProtocol {
                                 minimum: nil,
                                 maximum: nil
                             ),
-                            "title": ParameterDefinition(
+                            "newTitle": ParameterDefinition(
                                 type: .string,
                                 description: "New title, if updating",
                                 enumValues: nil,
                                 minimum: nil,
                                 maximum: nil
                             ),
-                            "startDate": ParameterDefinition(
+                            "newStartDate": ParameterDefinition(
                                 type: .string,
                                 description: "New start date/time (ISO8601, format: yyyy-MM-dd'T'HH:mm:ss), if updating. If user asked to remove it, just set it empty string",
                                 enumValues: nil,
                                 minimum: nil,
                                 maximum: nil
                             ),
-                            "endDate": ParameterDefinition(
+                            "newEndDate": ParameterDefinition(
                                 type: .string,
                                 description: "New end date/time (ISO8601, format: yyyy-MM-dd'T'HH:mm:ss), if updating. If user asked to remove it, just set it empty string. Also, set it empty string if user asked to remove start date only",
                                 enumValues: nil,
                                 minimum: nil,
                                 maximum: nil
                             ),
-                            "notificationInterval": ParameterDefinition(
+                            "newNotificationInterval": ParameterDefinition(
                                 type: .integer,
                                 description: "Notification interval in minutes, if updating",
                                 enumValues: nil,
                                 minimum: nil,
                                 maximum: nil
                             ),
-                            "recurrenceType": ParameterDefinition(
+                            "newRecurrenceType": ParameterDefinition(
                                 type: .string,
                                 description: "Recurrence type (none, daily, weekly, monthly, yearly), if updating",
                                 enumValues: ["none", "daily", "weekly", "monthly", "yearly"],
                                 minimum: nil,
                                 maximum: nil
                             ),
-                            "recurrenceInterval": ParameterDefinition(
+                            "newRecurrenceInterval": ParameterDefinition(
                                 type: .integer,
                                 description: "Recurrence interval (Time interval in the units specified by recurrenceType between the occurrences of the event), if updating",
                                 enumValues: nil,

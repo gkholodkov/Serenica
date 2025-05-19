@@ -55,11 +55,14 @@ struct UnassignedEventsView: View {
                             }
                         )
                         .listRowSeparator(.hidden)
-                    }
-                    .onDelete { indexSet in
-                        if let index = indexSet.first {
-                            eventToDelete = unassignedTasks[index]
-                            showingDeletionConfirmation = true
+                        .swipeActions(edge: .trailing) {
+                            // Delete button
+                            Button(role: .destructive) {
+                                eventToDelete = event
+                                showingDeletionConfirmation = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
                 }

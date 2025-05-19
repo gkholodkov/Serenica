@@ -15,8 +15,7 @@ class DeepSeekAIService: AIServiceProtocol {
     }
     
     /// Gets the natural language response using retry logic.
-    func getNaturalLanguageResponse(_ message: String,
-                                    prefixMessage: ChatMessage? = nil,
+    func getNaturalLanguageResponse(newOrderedMessages: [ChatMessage],
                                     shortTermMemory: [ChatMessage]? = nil,
                                     longTermMemory: ChatMessage? = nil) async throws -> [Choice] {
         var request = URLRequest(url: URL(string: baseURL)!)
@@ -28,12 +27,7 @@ class DeepSeekAIService: AIServiceProtocol {
         let importantInformationMessages = [systemMessage, longTermMemory].compactMap { $0 }
         
         // Combine system message, previous messages, and the new message.
-        let allMessages: [ChatMessage]
-        if let prefix = prefixMessage {
-            allMessages = importantInformationMessages + recentChatMessages + [ChatMessage(role: .user, content: message), prefix]
-        } else {
-            allMessages = importantInformationMessages + recentChatMessages + [ChatMessage(role: .user, content: message)]
-        }
+        let allMessages = importantInformationMessages + recentChatMessages + newOrderedMessages
         
         let chatRequest = ChatRequest(
             model: "deepseek-chat",
@@ -52,7 +46,7 @@ class DeepSeekAIService: AIServiceProtocol {
     }
     
     /// Gets tool calls response using retry logic.
-    func getToolCallsResponse(_ message: String,
+    func getToolCallsResponse(newOrderedMessages: [ChatMessage],
                               shortTermMemory: [ChatMessage]? = nil) async throws -> [ToolCall] {
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
@@ -61,7 +55,7 @@ class DeepSeekAIService: AIServiceProtocol {
         
         let currentDatePrompt = ChatMessage(role: .system, content: "Today is \(Date().ISO8601Format())")
         let recentChatMessages = shortTermMemory ?? []
-        let allMessages = [currentDatePrompt] + recentChatMessages + [ChatMessage(role: .user, content: message)]
+        let allMessages = [currentDatePrompt] + recentChatMessages + newOrderedMessages
         
         let chatRequest = ChatRequest(
             model: "deepseek-chat",

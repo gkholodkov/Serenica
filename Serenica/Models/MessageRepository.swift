@@ -12,45 +12,79 @@ class MessageRepository: MessageRepositoryProtocol {
     
     func fetchMessages() -> [Message] {
         guard let userId = authService.currentUser?.id else { return [] }
+        
+        var fetchedMessages: [Message] = []
+        
         let request = NSFetchRequest<MessageEntity>(entityName: "MessageEntity")
         request.sortDescriptors = [NSSortDescriptor(keyPath: \MessageEntity.timestamp, ascending: true)]
         request.predicate = NSPredicate(format: "user.id == %@", userId as CVarArg)
         
         do {
             let entities = try context.fetch(request)
-            return entities.map { entity in
+            fetchedMessages = entities.map { entity in
                 Message(
                     id: entity.id ?? UUID(),
                     content: entity.content ?? "",
                     isFromUser: entity.isFromUser,
-                    timestamp: entity.timestamp ?? Date()
+                    timestamp: entity.timestamp ?? Date(),
+                    isFactChecked: entity.isFactChecked
                 )
             }
         } catch {
             print("Error fetching messages: \(error.localizedDescription)")
-            return []
+            fetchedMessages = []
         }
+        
+        return fetchedMessages
     }
     
     func addMessage(_ message: Message) {
         guard let userId = authService.currentUser?.id else { return }
-        let entity = MessageEntity(context: context)
+        
+        let entity = MessageEntity(context: self.context)
         entity.id = message.id
         entity.content = message.content
         entity.isFromUser = message.isFromUser
         entity.timestamp = message.timestamp
+        entity.isFactChecked = message.isFactChecked
         
         // Associate with UserEntity based on current user.
         let userRequest = NSFetchRequest<UserEntity>(entityName: "UserEntity")
         userRequest.predicate = NSPredicate(format: "id == %@", userId as CVarArg)
-        if let userEntity = (try? context.fetch(userRequest))?.first {
+        if let userEntity = (try? self.context.fetch(userRequest))?.first {
             entity.user = userEntity
         }
         
         do {
-            try context.save()
+            try self.context.save()
         } catch {
             print("Error saving message: \(error.localizedDescription)")
+        }
+    }
+    
+    func addAgentMessage(_ message: Message) {
+        guard let userId = authService.currentUser?.id else { return }
+        
+        context.perform {
+            let entity = MessageEntity(context: self.context)
+            entity.id = message.id
+            entity.content = message.content
+            entity.isFromUser = message.isFromUser
+            entity.timestamp = message.timestamp
+            entity.isFactChecked = message.isFactChecked
+            
+            // Associate with UserEntity based on current user.
+            let userRequest = NSFetchRequest<UserEntity>(entityName: "UserEntity")
+            userRequest.predicate = NSPredicate(format: "id == %@", userId as CVarArg)
+            if let userEntity = (try? self.context.fetch(userRequest))?.first {
+                entity.user = userEntity
+            }
+            
+            do {
+                try self.context.save()
+            } catch {
+                print("Error saving message: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -59,9 +93,9 @@ class MessageRepository: MessageRepositoryProtocol {
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
             
         do {
-            if let entity = try context.fetch(request).first {
-                context.delete(entity)
-                try context.save()
+            if let entity = try self.context.fetch(request).first {
+                self.context.delete(entity)
+                try self.context.save()
             }
         } catch {
             print("Error deleting message: \(error.localizedDescription)")
@@ -77,14 +111,33 @@ class MessageRepository: MessageRepositoryProtocol {
         request.returnsObjectsAsFaults = true
 
         do {
-            let messages = try context.fetch(request)
+            let messages = try self.context.fetch(request)
             for msg in messages {
-                context.delete(msg)
+                self.context.delete(msg)
             }
 
-            try context.save()
+            try self.context.save()
         } catch {
             print("Error clearing messages:", error)
+        }
+    }
+    
+    func factCheckMessages() {
+        guard let userId = authService.currentUser?.id else { return }
+
+        context.perform {
+            let request = NSFetchRequest<MessageEntity>(entityName: "MessageEntity")
+            request.predicate = NSPredicate(format: "user.id == %@ AND isFactChecked == false", userId as CVarArg)
+                
+            do {
+                let entities = try self.context.fetch(request)
+                for entity in entities {
+                    entity.isFactChecked = true
+                }
+                try self.context.save()
+            } catch {
+                print("Error fact-checking messages: \(error.localizedDescription)")
+            }
         }
     }
 

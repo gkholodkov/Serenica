@@ -4,8 +4,7 @@ import CoreData
 
 class AgentMemoryService {
     private let memoryRepository: MemoryRepository
-    private var chatShortTermMemory: [ChatMessage] = []
-    private var toolsShortTermMemory: [ChatMessage] = []
+    private var shortTermMemory: [ChatMessage] = []
     
     // Serial queue to synchronize access to in‑memory collections.
     private let memoryQueue = DispatchQueue(label: "com.myapp.agentMemoryQueue")
@@ -66,42 +65,28 @@ class AgentMemoryService {
         
     func changeShortTermMemory(_ messages: [ChatMessage]) {
         memoryQueue.sync {
-            // Append only messages that are not tool responses.
-            let filteredMessages = messages.filter { $0.role != .tool && !($0.role == .assistant && $0.tool_calls != nil) }
-            self.chatShortTermMemory.append(contentsOf: filteredMessages)
-            self.toolsShortTermMemory.append(contentsOf: messages)
+            // Append messages to the short term memory.
+            self.shortTermMemory.append(contentsOf: messages)
                 
-            // Keep chatShortTermMemory to a maximum of 16 elements.
-            if self.chatShortTermMemory.count > 16 {
-                self.chatShortTermMemory.removeFirst(self.chatShortTermMemory.count - 16)
-            }
-            // Keep toolsShortTermMemory to a maximum of 30 elements.
-            if self.toolsShortTermMemory.count > 20 {
-                self.toolsShortTermMemory.removeFirst(self.toolsShortTermMemory.count - 20)
-                if self.toolsShortTermMemory.first?.role == .tool {
-                    self.toolsShortTermMemory.removeFirst()
+            // Keep shortTermMemory to a maximum of 20 elements.
+            if self.shortTermMemory.count > 20 {
+                self.shortTermMemory.removeFirst(self.shortTermMemory.count - 20)
+                while self.shortTermMemory.first?.role == .tool {
+                    self.shortTermMemory.removeFirst()
                 }
             }
         }
     }
         
-        
-    func fetchShortTermChatMemory() -> [ChatMessage] {
+    func fetchShortTermMemory() -> [ChatMessage] {
         return memoryQueue.sync {
-            return self.chatShortTermMemory
-        }
-    }
-        
-    func fetchShortTermToolsMemory() -> [ChatMessage] {
-        return memoryQueue.sync {
-            return self.toolsShortTermMemory
+            return self.shortTermMemory
         }
     }
         
     func clearMemory() {
         memoryRepository.clearMemory()
-        chatShortTermMemory.removeAll()
-        toolsShortTermMemory.removeAll()
+        shortTermMemory.removeAll()
     }
     
     private func processNewFacts(existing: [Fact], adding newFacts: [Fact]?) -> [Fact] {

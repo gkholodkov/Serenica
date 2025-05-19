@@ -77,11 +77,17 @@ struct ToDoView: View {
         // Event detail sheet
         .sheet(item: $selectedEvent) { event in
             if (selectedTab == 2) {
-                CompletedTaskDetailsView(event: event)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                    .padding(.top, Serenity.Layout.standardPadding)
-                    .background(.ultraThickMaterial)
+                CompletedTaskDetailsView(
+                    event: event,
+                    onReschedule: { updatedEvent in
+                        // Handle updating the event.
+                        eventService.updateEvent(updatedEvent)
+                    }
+                )
+                .presentationDetents([.medium, .large], selection: .constant(.medium))
+                .presentationDragIndicator(.visible)
+                .padding(.top, Serenity.Layout.standardPadding)
+                .background(.ultraThickMaterial)
             }
             else {
                 EventDetailView(

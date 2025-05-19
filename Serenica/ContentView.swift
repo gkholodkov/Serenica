@@ -11,7 +11,7 @@ struct ContentView: View {
             MainTabView()
                 // ③ Hook into “view disappears”:
                 .onDisappear {
-                    Task { await messageService.onEndConversation(reason: .viewDismissed) }
+                    Task { await messageService.onEndConversation() }
                 }
         }
         .environment(\.managedObjectContext, viewContext)

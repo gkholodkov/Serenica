@@ -332,21 +332,22 @@ struct CreateEventArgs: Codable {
     let recurrenceType: String?
     let recurrenceInterval: Int?
     let recurrenceEndDate: String?
+    let notes: String?
 }
 
 // Decoded args for modifying an event
 struct ModifyEventArgs: Codable {
     let eventId: Int?
     let originalTitle: String?
-    let date: String?
+    let originalDate: String?
     let action: String
     let applyForAllAfter: Bool?
-    let title: String?
-    let startDate: String?
-    let endDate: String?
-    let notificationInterval: Int?
-    let recurrenceType: String?
-    let recurrenceInterval: Int?
+    let newTitle: String?
+    let newStartDate: String?
+    let newEndDate: String?
+    let newNotificationInterval: Int?
+    let newRecurrenceType: String?
+    let newRecurrenceInterval: Int?
 }
 
 struct EmotionArgs: Codable {

@@ -47,9 +47,7 @@ class EventService: ObservableObject {
                    byTitle titleContains: String? = nil) -> [Event] {
         return (events+recurringEvents+undatedEvents+completedEvents).filter { event in
             // Date filtering
-            print(dates)
             let dateMatches: Bool = dates == nil || dates!.contains(where: { date in event.hasOccurrence(on: date) })
-            print (dateMatches)
 
             // Title filtering
             let titleMatches: Bool
@@ -58,7 +56,6 @@ class EventService: ObservableObject {
             } else {
                 titleMatches = true // No title filter applied
             }
-            print(titleMatches)
             
             // Return true only if both conditions are satisfied
             return dateMatches && titleMatches
@@ -107,84 +104,34 @@ class EventService: ObservableObject {
     
     /// Refreshes notifications for all events (non-recurring and recurring) scheduled for today.
     func refreshNotificationsForToday() {
-        let today = Date()
+        let now = Date()
         let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        print("Try to schedule notification on \(today)")
+        print("Here're the events as of now: \(events + recurringEvents)")
         
         // Remove notifications for events not scheduled for today
         for event in events + recurringEvents {
             if let notificationId = event.notificationId,
-                let startDate = event.startDate,
-                !calendar.isDate(startDate, inSameDayAs: today) {
+                let reminderDate = event.reminderDate,
+               !calendar.isDate(reminderDate, inSameDayAs: today) {
                 notificationService.removeNotification(for: notificationId)
             }
         }
         
-        // Refresh notifications for non-recurring events
-        let eventsForToday = events.filter { event in
-            guard let startDate = event.startDate else { return false }
-            return calendar.isDate(startDate, inSameDayAs: today)
+        // Refresh notifications for events
+        let eventsForToday = (events + recurringEvents).filter { event in
+            if let reminderDate = event.reminderDate {
+                return calendar.isDate(reminderDate, inSameDayAs: today)
+            }
+            return false
         }
         
-        // Refresh notifications for recurring events using your recurringEvents(on:) helper.
-        let recurringForToday = recurringEvents.filter { event in
-            // Exclude the target day if it is in the event's excluded dates.
-            if event.recurrenceExcludedDates?.contains(where: { calendar.isDate($0, inSameDayAs: today) }) == true {
-                return false
-            }
-            
-            if let endDate = event.recurrenceEndDate, today >= endDate {
-                return false
-            }
-
-            guard let eventStart = event.startDate else { return false }
-            let startDay = calendar.startOfDay(for: eventStart)
-            
-            switch event.recurrenceType {
-            case .daily:
-                let daysDiff = calendar.dateComponents([.day], from: startDay, to: today).day ?? -1
-                return daysDiff >= 0 && daysDiff % event.recurrenceInterval == 0
-                
-            case .workingDays:
-                if calendar.isDateInWeekend(today) { return false }
-                return today >= startDay
-                
-            case .weekly:
-                let weekdayStart = calendar.component(.weekday, from: eventStart)
-                let weekdayTarget = calendar.component(.weekday, from: today)
-                if weekdayStart != weekdayTarget { return false }
-                let weeksDiff = calendar.dateComponents([.weekOfYear], from: startDay, to: today).weekOfYear ?? -1
-                return weeksDiff >= 0 && weeksDiff % event.recurrenceInterval == 0
-                
-            case .monthly:
-                let monthsDiff = calendar.dateComponents([.month], from: startDay, to: today).month ?? -1
-                if monthsDiff < 0 || monthsDiff % event.recurrenceInterval != 0 { return false }
-                if let candidate = calendar.date(byAdding: .month, value: monthsDiff, to: eventStart) {
-                    return calendar.isDate(candidate, inSameDayAs: today)
-                }
-                return false
-                
-            case .yearly:
-                let yearsDiff = calendar.dateComponents([.year], from: startDay, to: today).year ?? -1
-                if yearsDiff < 0 || yearsDiff % event.recurrenceInterval != 0 { return false }
-                if let candidate = calendar.date(byAdding: .year, value: yearsDiff, to: eventStart) {
-                    return calendar.isDate(candidate, inSameDayAs: today)
-                }
-                return false
-                
-            case .none:
-                return false
-            }
-        }
+        print("Events for today: \(eventsForToday)")
         
         for event in eventsForToday {
             if let _ = event.notificationId {
-                notificationService.scheduleNotification(for: event, on: today)
-            }
-        }
-        
-        for event in recurringForToday {
-            if let _ = event.notificationId {
-                notificationService.scheduleNotification(for: event, on: today)
+                notificationService.scheduleNotification(for: event, on: now)
             }
         }
     }
@@ -201,27 +148,17 @@ class EventService: ObservableObject {
     // MARK: - Business Operations
     
     func addEvent(_ event: Event) {
-        do {
-            try repository.addEvent(event)
-            fetchEvents()
-            refreshNotificationsForToday()
-        } catch {
-            print("Error adding event: \(error.localizedDescription)")
-        }
+        repository.addEvent(event)
+        fetchEvents()
     }
     
     func updateEvent(_ event: Event, initialNotificationId: UUID? = nil) {
-        do {
-            var updatedEvent = event
-            updatedEvent.isOverdue = event.isOverdue && !event.isCompleted && event.endDate ?? Date() < Date()
-            try repository.updateEvent(updatedEvent)
-            fetchEvents()
-            if let notificationId = initialNotificationId, event.notificationId == nil {
-                notificationService.removeNotification(for: notificationId)
-            }
-            refreshNotificationsForToday()
-        } catch {
-            print("Error updating event: \(error.localizedDescription)")
+        var updatedEvent = event
+        updatedEvent.isOverdue = event.isOverdue && !event.isCompleted && event.endDate ?? Date() < Date()
+        repository.updateEvent(updatedEvent)
+        fetchEvents()
+        if let notificationId = initialNotificationId, event.notificationId == nil {
+            notificationService.removeNotification(for: notificationId)
         }
     }
     
@@ -320,14 +257,10 @@ class EventService: ObservableObject {
 
     
     func deleteEvent(withId id: UUID, initialNotificationId: UUID? = nil) {
-        do {
-            try repository.deleteEvent(withId: id)
-            fetchEvents()
-            if let notificationId = initialNotificationId {
-                notificationService.removeNotification(for: notificationId)
-            }
-        } catch {
-            print("Error deleting event: \(error.localizedDescription)")
+        repository.deleteEvent(withId: id)
+        fetchEvents()
+        if let notificationId = initialNotificationId {
+            notificationService.removeNotification(for: notificationId)
         }
     }
 
@@ -374,7 +307,6 @@ class EventService: ObservableObject {
         if let eventStart = event.startDate, calendar.isDate(eventStart, inSameDayAs: targetDay) {
             // Simply advance the recurring event to the next occurrence.
             deleteEvent(withId: event.id, initialNotificationId: event.notificationId)
-            refreshNotificationsForToday()
             return
         }
         
@@ -398,10 +330,16 @@ class EventService: ObservableObject {
     }
     
     func toggleEventCompletion(_ event: Event, on date: Date) {
-        if event.recurrenceType == .none {
-            complete(event: event)
+        if event.isCompleted {
+            var updatedEvent = event
+            updatedEvent.isCompleted = false
+            updateEvent(updatedEvent)
         } else {
-            completeOccurrence(of: event, on: date)
+            if event.recurrenceType == .none {
+                complete(event: event)
+            } else {
+                completeOccurrence(of: event, on: date)
+            }
         }
     }
     
@@ -580,6 +518,7 @@ class EventService: ObservableObject {
             self?.recurringEvents = newRecurringEvents
             self?.completedEvents = newCompletedEvents
             self?.undatedEvents = newUndatedEvents
+            self?.refreshNotificationsForToday()
         }
     }
 
@@ -588,12 +527,8 @@ class EventService: ObservableObject {
     // MARK: - Preview Helper
     #if DEBUG
     func previewAddEvent(_ event: Event) {
-        do {
-            try repository.addEvent(event)
-            fetchEvents()
-        } catch {
-            print("Error in preview add event: \(error.localizedDescription)")
-        }
+        repository.addEvent(event)
+        fetchEvents()
     }
     #endif
 }

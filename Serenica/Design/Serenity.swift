@@ -23,6 +23,9 @@ enum Serenity {
         /// Deleteion and cancellation text color
         static let textDanger = Color.red
         
+        /// Recording on color
+        static let recordingOn = Color.red
+        
         /// Divider lines remain the same light gray
         static let divider = Color(hex: "E5E5EA")
         

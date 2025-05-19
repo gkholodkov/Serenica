@@ -77,6 +77,12 @@ extension Date {
         return hours * 3600 + minutes * 60 + seconds + nanoseconds / 1_000_000_000
     }
     
+    /// Returns true if date is more than n hours in the past
+    func isNotEarlierThanNHoursBeforeNow(hours n: Int = 2) -> Bool {
+        let nHoursBefore = Calendar.current.date(byAdding: .hour, value: -1 * n, to: Date())!
+        return self >= nHoursBefore
+    }
+    
     static func dateSpan(
         from start: Date?,
         to end: Date?,

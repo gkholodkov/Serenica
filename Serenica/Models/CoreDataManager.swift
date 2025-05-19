@@ -14,6 +14,8 @@ class CoreDataManager {
                 fatalError("Core Data failed to load: \(error.localizedDescription)")
             }
         }
+        
+        container.viewContext.automaticallyMergesChangesFromParent = true
     }
     
     var viewContext: NSManagedObjectContext {
