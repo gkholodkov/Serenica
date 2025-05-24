@@ -10,7 +10,6 @@ struct FactExtractionService {
     
     func extractNewFacts(_ messages: [ChatMessage], knownFacts: [String]) async -> [Fact] {
         guard let lastUserMessage = messages.last(where: { $0.role == .user }) else {
-            print("No user message found.")
             return []
         }
         

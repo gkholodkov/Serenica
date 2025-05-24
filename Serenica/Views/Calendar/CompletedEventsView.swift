@@ -43,6 +43,11 @@ struct CompletedEventsView: View {
             .padding([.horizontal, .top])
     }
     
+    // MARK: - Undated Events
+    private var undatedCompletedEvents: [Event] {
+        eventService.completedEvents.filter { $0.startDate == nil && $0.endDate == nil }
+    }
+    
     // MARK: - Daily Event Grouping
     /// For events that may span multiple days, create one entry per day.
     /// For each day, if it is not the start day, we use 00:00 as the start time;
@@ -179,6 +184,28 @@ struct CompletedEventsView: View {
                     }
                 }
             }
+            if !undatedCompletedEvents.isEmpty {
+                Section(header:
+                    Text("Undated")
+                        .font(Serenity.Typography.screenSubtitle())
+                        .foregroundColor(Serenity.Colors.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                ) {
+                    ForEach(undatedCompletedEvents) { event in
+                        UndatedCompletedEventRow(event: event) {
+                            selectedEvent = event
+                        }
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                eventToDelete = event
+                                showingDeletionConfirmation = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
         }
         .listStyle(.plain)
     }
@@ -224,6 +251,25 @@ private struct EventRow: View {
         }
     }
 }
+
+private struct UndatedCompletedEventRow: View {
+    let event: Event
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(event.title)
+                .font(Serenity.Typography.bodyText())
+                .strikethrough(event.isCompleted)
+                .foregroundColor(Serenity.Colors.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, Serenity.Layout.smallPadding)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 
 /*
 // MARK: - Preview

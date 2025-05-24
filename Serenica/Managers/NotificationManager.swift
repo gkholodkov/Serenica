@@ -47,7 +47,6 @@ class NotificationManager {
         }
         // Remove the pending notification associated with the event.
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationId.uuidString])
-        print("Notification removed for id: \(notificationId.uuidString)")
     }
     
     private func scheduleNotification(for event: Event, with notificationId: UUID, on date: Date) {
@@ -57,15 +56,9 @@ class NotificationManager {
         
         let now = Date()
         let gracePeriod: TimeInterval = 90
-        
-        print("Reached Notification Manager")
-        
-        // **Add Debugging Here**
-        print("Attempting to schedule notification for \(event.title) at \(triggerDate)")
 
         // Check if triggerDate is in the future:
         if triggerDate < now && now.timeIntervalSince(triggerDate) > gracePeriod {
-            print("❌ Error: Trigger date is in the past. Notification will NOT fire.")
             return
         }
         

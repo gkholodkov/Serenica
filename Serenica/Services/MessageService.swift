@@ -46,13 +46,13 @@ class MessageService: ObservableObject {
     /// Sends first message if needed. Starts converrsation, if appropriate
     /// It shouldn't be handled by the repository, or anyhow affect it
     func startConversation() async {
-        if !messages.isEmpty && messages.last!.timestamp.isNotEarlierThanNHoursBeforeNow() { return }
+        if !messages.isEmpty && messages.last!.timestamp.isNotEarlierThanNHoursBeforeNow(hours: 12) { return }
         
         var firstMessageText: String = ""
         if messages.isEmpty {
             firstMessageText = "You're speaking to the user for the first time. Introduce yourself, a smoothly start a conversation."
         } else if messages.last?.timestamp.isNotEarlierThanNHoursBeforeNow() == false {
-            firstMessageText = "You haven't been speaking to the user for couple hours. Send him gentle and subtle reminder that you're there for them."
+            firstMessageText = "You haven't been speaking to the user for couple hours. Send him gentle and subtle reminder that you're there for them. Appeal to your last conversation if reasonable.s"
         }
         
         isAgentTyping = true

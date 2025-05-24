@@ -11,6 +11,11 @@ struct UnassignedEventsView: View {
     @State private var eventToDelete: Event? = nil
     @State private var showingDeletionConfirmation: Bool = false
     
+    @State private var pendingToggleCompleteEvent: Event? = nil
+    @State private var countdown: Int = 3
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    
     /// Filter out tasks that are already completed.
     private var unassignedTasks: [Event] {
         eventService.undatedEvents.filter { !$0.isCompleted }
@@ -48,7 +53,8 @@ struct UnassignedEventsView: View {
                     ForEach(unassignedTasks) { event in
                         UnassignedEventRowView(
                             event: event,
-                            onToggle: { eventService.toggleEventCompletion(event, on: Date()) },
+                            pendingToggleCompleteEvent: pendingToggleCompleteEvent,
+                            onToggle: { startPendingToggle(for: event) },
                             onTap: {
                                 selectedEvent = event
                                 selectedEventOccurrence = nil
@@ -89,12 +95,42 @@ struct UnassignedEventsView: View {
         } message: {
             Text("The task will be deleted.")
         }
+        .onReceive(timer) { _ in
+            guard pendingToggleCompleteEvent != nil else { return }
+            if countdown > 0 {
+                countdown -= 1
+            } else {
+                if let event = pendingToggleCompleteEvent {
+                    eventService.toggleEventCompletion(event, on: Date())
+                }
+                pendingToggleCompleteEvent = nil
+            }
+        }
+    
+        if pendingToggleCompleteEvent != nil { // <--
+            VStack {
+                Spacer()
+                CompletionUndoAlert(countdown: countdown, cancelAction: cancelPendingToggle) // <--
+            }
+            .transition(.move(edge: .bottom))
+            .animation(.easeInOut, value: pendingToggleCompleteEvent)
+        }
+    }
+    
+    private func startPendingToggle(for event: Event) {
+        pendingToggleCompleteEvent = event
+        countdown = 3
+    }
+
+    private func cancelPendingToggle() {
+        pendingToggleCompleteEvent = nil
     }
 }
 
 /// Row view for an unassigned event without a subheading.
 private struct UnassignedEventRowView: View {
     let event: Event
+    let pendingToggleCompleteEvent: Event?
     let onToggle: () -> Void
     let onTap: () -> Void
     
@@ -102,7 +138,7 @@ private struct UnassignedEventRowView: View {
         HStack(spacing: Serenity.Layout.smallPadding) {
             // Checkbox button.
             Button(action: onToggle) {
-                CheckboxView(isChecked: event.isCompleted)
+                CheckboxView(isChecked: event.isCompleted || event.id == pendingToggleCompleteEvent?.id)
             }
             .buttonStyle(.plain)
             .frame(width: Serenity.Layout.minimumTapTarget, height: Serenity.Layout.minimumTapTarget)
@@ -114,7 +150,10 @@ private struct UnassignedEventRowView: View {
                 Text(event.title)
                     .font(Serenity.Typography.bodyText())
                     .foregroundColor(Serenity.Colors.textPrimary)
-                    .strikethrough(event.isCompleted)
+                    .strikethrough(
+                        event.isCompleted
+                        || event.id == pendingToggleCompleteEvent?.id
+                    )
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)

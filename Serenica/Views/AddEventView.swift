@@ -217,9 +217,7 @@ struct AddEventView: View {
             recurrenceEndDate: (isRecurring && setRecurrenceEndDate) ? recurrenceEndDate : nil,
             recurrenceExcludedDates: []
         )
-        
-        print("Here's the event to be saved from AddEventView: \(event)")
-        
+                
         eventStore.addEvent(event)
         dismiss()
     }

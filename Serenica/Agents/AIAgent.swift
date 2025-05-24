@@ -60,8 +60,6 @@ class AIAppAgent {
                     let memory = memoryService.fetchLongTermMemory()
                     let newEmotion = try await emotionRecognitionService.analyzeEmotionHybrid(message, previousEmotion: memory.emotionalState.averageEmotion())
                     let newPersonalityProfile = personalityCreationService.derivePersonality(from: memory.personality, usingEmotions: memory.emotionalState + [newEmotion])
-                    print("New Emotion: \(newEmotion)")
-                    print("New Personality Profile: \(newPersonalityProfile)")
                     await memoryService.changeLongTermMemory(newEmotion: newEmotion, newFacts: nil, newPersonalityProfile: newPersonalityProfile)
                 } catch {}
             }
@@ -94,9 +92,9 @@ class AIAppAgent {
                 var finalEnd: Date? = nil
                 var finalRecurrenceEnd: Date? = nil
                 
-                let startRaw = decodedArgs.startDate ?? ""
-                let endRaw = decodedArgs.endDate ?? ""
-                let recurRaw = decodedArgs.recurrenceEndDate ?? ""
+                let startRaw = Date.sanitizeISODateTime(decodedArgs.startDate ?? "")
+                let endRaw = Date.sanitizeISODateTime(decodedArgs.endDate ?? "")
+                let recurRaw = Date.sanitizeISODateTime(decodedArgs.recurrenceEndDate ?? "")
 
                 let parsedStartDate: Date? = {
                     guard !startRaw.isEmpty else { return nil }
@@ -149,6 +147,8 @@ class AIAppAgent {
                     recurrenceEndDate: finalRecurrenceEnd
                 )
                 
+                print("Agents adds event: \(event)")
+                
                 eventService.addEvent(event)
                 
                 let startDateString = event.startDate != nil ? "\(DateFormatter.germanLongDate.string(from: event.startDate!)) \(DateFormatter.germanShortTime.string(from: event.startDate!))" : ""
@@ -171,7 +171,8 @@ class AIAppAgent {
             }
             do {
                 let modifyArgs = try JSONDecoder().decode(ModifyEventArgs.self, from: argsData)
-                let lookupDate = DateFormatter.localDateFormatter.date(from: modifyArgs.originalDate ?? "")
+                let sanitizedOriginalDate = Date.sanitizeISODate(modifyArgs.originalDate ?? "")
+                let lookupDate = DateFormatter.localDateFormatter.date(from: sanitizedOriginalDate)
                 var event: Event
                 
                 if let eventId = modifyArgs.eventId {
@@ -205,10 +206,17 @@ class AIAppAgent {
                     }
                 }
                 
+                if event.recurrenceType != .none && lookupDate == nil {
+                    let functionResponseMessage = ChatMessage(role: .tool, content: "{\"error\": \"Could not specify the originalDate for the occurence of the recurring event \"\(event.title)\" .\"}", name: "modifyEvent", tool_call_id: toolCall.id)
+                    
+                    return functionResponseMessage
+                }
+                
                 switch modifyArgs.action {
                 case "update":
                     var updatedEvent = event
                     let now = Date()
+                    updatedEvent.isCompleted = false
                     if let newTitle = modifyArgs.newTitle, !newTitle.isEmpty {
                         updatedEvent.title = newTitle
                     }
@@ -227,12 +235,14 @@ class AIAppAgent {
                     // 1) Try parsing each incoming string (nil or empty → nil Date)
                     let parsedStartDate: Date? = {
                         guard let s = modifyArgs.newStartDate, !s.isEmpty else { return nil }
-                        return DateFormatter.localDateTimeFormatter.date(from: s)
+                        let sanitized = Date.sanitizeISODateTime(s)
+                        return DateFormatter.localDateTimeFormatter.date(from: sanitized)
                     }()
 
                     let parsedEndDate: Date? = {
                         guard let s = modifyArgs.newEndDate, !s.isEmpty else { return nil }
-                        return DateFormatter.localDateTimeFormatter.date(from: s)
+                        let sanitized = Date.sanitizeISODateTime(s)
+                        return DateFormatter.localDateTimeFormatter.date(from: sanitized)
                     }()
 
                     // 2) If either was explicitly emptied, clear everything
@@ -299,7 +309,9 @@ class AIAppAgent {
                         eventService.updateEvent(updatedEvent, initialNotificationId: event.notificationId)
                     }
                     
-                    let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"Event \"\(event.title)\" updated successfully.\"}", name: "modifyEvent", tool_call_id: toolCall.id)
+                    let operationString = event.isCompleted ? "rescheduled" : "updated"
+                    
+                    let functionResponseMessage = ChatMessage(role: .tool, content: "{\"result\": \"Event \"\(event.title)\" \(operationString) successfully.\"}", name: "modifyEvent", tool_call_id: toolCall.id)
                     return functionResponseMessage
                 case "delete":
                     if modifyArgs.applyForAllAfter == true && event.recurrenceType != .none {
@@ -337,9 +349,10 @@ class AIAppAgent {
             }
             do {
                 let getEventsArgs = try JSONDecoder().decode(GetEventsArgs.self, from: argsData)
-                let dates = getEventsArgs.specificDates?.compactMap { DateFormatter.localDateFormatter.date(from: $0) } ?? Date.dateSpan(from: DateFormatter.localDateFormatter.date(from: getEventsArgs.dateFrom ?? ""), to: DateFormatter.localDateFormatter.date(from: getEventsArgs.dateTo ?? ""))
+                let dates = getEventsArgs.specificDates?.compactMap { DateFormatter.localDateFormatter.date(from: Date.sanitizeISODate($0)) } ?? Date.dateSpan(from: DateFormatter.localDateFormatter.date(from: Date.sanitizeISODate(getEventsArgs.dateFrom ?? "")), to: DateFormatter.localDateFormatter.date(from: Date.sanitizeISODate(getEventsArgs.dateTo ?? "")))
                 
-                let events = eventService.getEvents(byDates: dates, byTitle: getEventsArgs.titleQuery)
+                let events = eventService.getEvents(byDates: dates, byTitle: getEventsArgs.titleQuery, undatedOnly: getEventsArgs.undatedOnly ?? false)
+                print("Tool found events: \(events)")
                 await eventContextManager.setEventsCacheAndIdMap(events)
                 let summaries = await eventContextManager.getCurrentEventCacheKnowledge() ?? ""
                 

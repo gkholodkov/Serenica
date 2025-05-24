@@ -104,6 +104,22 @@ extension Date {
         }
         return dates
     }
+    
+    static func sanitizeISODateTime(_ input: String) -> String {
+        let pattern = #"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})"#
+        if let match = input.range(of: pattern, options: .regularExpression) {
+            return String(input[match])
+        }
+        return input // or return input for fallback
+    }
+    
+    static func sanitizeISODate(_ input: String) -> String {
+        let pattern = #"^(\d{4}-\d{2}-\d{2})"#
+        if let match = input.range(of: pattern, options: .regularExpression) {
+            return String(input[match])
+        }
+        return input 
+    }
 }
 
 extension DateFormatter {

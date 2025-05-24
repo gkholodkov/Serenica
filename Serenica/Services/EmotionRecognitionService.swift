@@ -12,7 +12,6 @@ struct EmotionRecognitionService {
     func analyzeEmotionHybrid(_ message: String, previousEmotion: Emotion?) async throws -> Emotion {
         // First, quick lexicon-based check
         let lexiconEmotion = lexiconSentimentRecognitionService.analyzePADEmotion(from: message)
-        print("Lexicon emotion: \(lexiconEmotion)")
 
         // Check if lexicon-based change is significant
         let significantChange =

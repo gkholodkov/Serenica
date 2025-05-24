@@ -23,9 +23,7 @@ struct LexiconSentimentRecognitionService {
                 totalArousal += padScores.arousal
                 totalDominance += padScores.dominance
                 matchedWords += 1
-                print("Word recognized: \(word)")
             }
-            print("Word not recognized: \(word)")
         }
 
         guard matchedWords > 0 else {

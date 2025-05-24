@@ -23,10 +23,10 @@ struct ChatView: View {
             
             ChatHistoryView(
                 messages: $messageService.messages,
-                scrollToBottomTrigger: $scrollToBottomTrigger,
+                scrollToBottomTrigger: $scrollToBottomTrigger
             )
             .edgesIgnoringSafeArea(.all)
-            
+
             Divider()
                 .background(Serenity.Colors.divider)
             

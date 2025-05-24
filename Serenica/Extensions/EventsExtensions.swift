@@ -549,6 +549,10 @@ extension EventService {
         return events.filter { occurs($0, on: date) }
     }
     
+    func completedEvents(on date: Date) -> [Event] {
+        return completedEvents.filter { occurs($0, on: date) }
+    }
+    
     func hasOccurrence(on date: Date) -> Bool {
         let calendar = Calendar.current
         let targetDay = calendar.startOfDay(for: date)

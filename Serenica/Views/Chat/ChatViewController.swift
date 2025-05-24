@@ -37,8 +37,6 @@ class ChatViewController: UIViewController, UITableViewDataSource, UITableViewDe
         scrollButton.addTarget(self, action: #selector(scrollButtonTapped), for: .touchUpInside)
         scrollButton.isHidden = true
         view.addSubview(scrollButton)
-        
-        
     }
 
     override func viewDidLayoutSubviews() {

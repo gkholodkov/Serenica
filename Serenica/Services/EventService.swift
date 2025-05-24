@@ -44,8 +44,20 @@ class EventService: ObservableObject {
     
     // MARK: - Getters for events fields
     func getEvents(byDates dates: [Date]? = nil,
-                   byTitle titleContains: String? = nil) -> [Event] {
-        return (events+recurringEvents+undatedEvents+completedEvents).filter { event in
+                   byTitle titleContains: String? = nil,
+                   undatedOnly: Bool = false) -> [Event] {
+        return undatedOnly
+        ? undatedEvents.filter { event in
+            let titleMatches: Bool
+            if let searchTitle = titleContains?.lowercased() {
+                titleMatches = event.title.lowercased().contains(searchTitle)
+            } else {
+                titleMatches = true // No title filter applied
+            }
+            
+            return titleMatches
+        }
+        : (events+recurringEvents+completedEvents+undatedEvents).filter { event in
             // Date filtering
             let dateMatches: Bool = dates == nil || dates!.contains(where: { date in event.hasOccurrence(on: date) })
 
@@ -107,8 +119,6 @@ class EventService: ObservableObject {
         let now = Date()
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        print("Try to schedule notification on \(today)")
-        print("Here're the events as of now: \(events + recurringEvents)")
         
         // Remove notifications for events not scheduled for today
         for event in events + recurringEvents {
@@ -126,9 +136,7 @@ class EventService: ObservableObject {
             }
             return false
         }
-        
-        print("Events for today: \(eventsForToday)")
-        
+                
         for event in eventsForToday {
             if let _ = event.notificationId {
                 notificationService.scheduleNotification(for: event, on: now)
@@ -478,8 +486,8 @@ class EventService: ObservableObject {
             Event(
                 id: entity.id ?? UUID(),
                 title: entity.title ?? "",
-                startDate: entity.startDate ?? Date(),
-                endDate: entity.endDate ?? Date(),
+                startDate: entity.startDate,
+                endDate: entity.endDate,
                 notes: entity.notes ?? "",
                 userId: entity.user?.id ?? UUID(),
                 isCompleted: entity.isCompleted,

@@ -92,9 +92,7 @@ class MistralAIService: AIServiceProtocol {
                 )
             )
         )
-        
-        print("Here's the chat request: \(chatRequest)")
-        
+                
         request.httpBody = try JSONEncoder().encode(chatRequest)
         print(String(data: request.httpBody!, encoding: .utf8)!)
         
@@ -102,14 +100,11 @@ class MistralAIService: AIServiceProtocol {
         let response = try JSONDecoder().decode(ChatResponse.self, from: data)
         
         guard let argsData = response.choices.first?.message.content?.data(using: .utf8) else {
-            print("Default emotion: (0, 0.5, 0.5, calm)")
             return EmotionRecognitionResponse(pleasure: 0, arousal: 0.5, dominance: 0.5, label: EmotionLabel.neutrality.rawValue)
         }
         
         let decodedArgs = try JSONDecoder().decode(EmotionArgs.self, from: argsData)
-        
-        print("LLM Emotion Recognition Successful")
-        
+                
         return EmotionRecognitionResponse(pleasure: decodedArgs.pleasure, arousal: decodedArgs.arousal, dominance: decodedArgs.dominance, label: decodedArgs.label)
     }
     
@@ -142,9 +137,7 @@ class MistralAIService: AIServiceProtocol {
             let decodedArgs = try JSONDecoder().decode(FactArgs.self, from: argsData)
             newFacts.append(Fact(key: decodedArgs.factKey, value: decodedArgs.factValue, ttl: decodedArgs.timeToLive, timestamp: Date(), importance: decodedArgs.importance))
         }
-        
-        print("LLM Facts Extraction Successful")
-        
+                
         return newFacts
     }
 }

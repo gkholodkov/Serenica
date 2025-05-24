@@ -207,6 +207,11 @@ extension AIServiceProtocol {
                                 description: "An array of individual dates (ISO 8601 yyyy-MM-dd) to include.",
                                 enumValues: nil, minimum: nil, maximum: nil
                             ),
+                            "undatedOnly": ParameterDefinition(
+                                type: .boolean,
+                                description: "Indicates whether to only include undated events was explicitly requested by user",
+                                enumValues: nil, minimum: nil, maximum: nil
+                            ),
                             "titleQuery": ParameterDefinition(
                                 type: .string,
                                 description: "Part of the event title to search",
@@ -319,6 +324,13 @@ extension AIServiceProtocol {
                                 minimum: nil,
                                 maximum: nil
                             ),
+                            "appealToCompletedCopy": ParameterDefinition(
+                                type: .boolean,
+                                description: "Return true if the user is appealing to the completed instance of the event or occurence",
+                                enumValues: nil,
+                                minimum: nil,
+                                maximum: nil
+                            ),
                             "action": ParameterDefinition(
                                 type: .string,
                                 description: "Action to perform. Can be lead from implicit hints from user message (e.g. 'I want to delete event on...', 'I want to complete event on...', etc.)",
@@ -376,7 +388,7 @@ extension AIServiceProtocol {
                                 maximum: nil
                             )
                         ],
-                        required: ["action"],
+                        required: ["action", "appealToCompletedCopy"],
                         additionalProperties: false
                     )
                 )

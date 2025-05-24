@@ -320,6 +320,7 @@ struct GetEventsArgs: Codable {
     let dateFrom: String?
     let dateTo: String?
     let specificDates: [String]?
+    let undatedOnly: Bool?
     let titleQuery: String?
 }
 
@@ -340,6 +341,7 @@ struct ModifyEventArgs: Codable {
     let eventId: Int?
     let originalTitle: String?
     let originalDate: String?
+    let appealToCompletedCopy: Bool
     let action: String
     let applyForAllAfter: Bool?
     let newTitle: String?
